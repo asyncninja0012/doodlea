@@ -7,12 +7,13 @@ import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { signIn } from 'next-auth/react'
+import { signIn, useSession } from 'next-auth/react'
 
 type PasswordStrength = 'weak' | 'medium' | 'strong' | null
 
 export default function LoginPage() {
     const router = useRouter()
+    const { data: session } = useSession()
     const [firstname, setFirstname] = useState('')
     const [lastname, setLastname] = useState('')
     const [username, setUsername] = useState('')
@@ -49,6 +50,7 @@ export default function LoginPage() {
         setIsLoading(true)
 
         try {
+            // Register the user
             const response = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: {
@@ -68,8 +70,31 @@ export default function LoginPage() {
             if (!response.ok) {
                 setError(data.error || 'Something went wrong')
             } else {
-                // Redirect to sign-in page after successful registration
-                router.push('/auth/sign-in?registered=true')
+                // Sign in the user automatically after registration
+                const result = await signIn('credentials', {
+                    email,
+                    password,
+                    redirect: false,
+                })
+
+                if (result?.error) {
+                    setError('Registration successful but sign-in failed. Please sign in manually.')
+                    router.push('/auth/sign-in')
+                } else {
+                    // Use slug from registration response
+                    if (data.slug) {
+                        router.push(`/billing/${data.slug}`)
+                    } else {
+                        // Fallback: wait for session to load and use slug from there
+                        setTimeout(() => {
+                            if (session?.user?.slug) {
+                                router.push(`/billing/${session.user.slug}`)
+                            } else {
+                                router.push('/auth/sign-in')
+                            }
+                        }, 500)
+                    }
+                }
             }
         } catch (error) {
             setError('Something went wrong')

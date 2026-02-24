@@ -7,6 +7,8 @@ declare module 'next-auth' {
       email: string
       name?: string | null
       image?: string | null
+      slug?: string | null
+      hasSubscription?: boolean
     }
   }
 
@@ -23,5 +25,7 @@ declare module 'next-auth/jwt' {
     id: string
     email: string
     lastValidated: number
+    slug?: string | null
+    hasSubscription?: boolean
   }
 }

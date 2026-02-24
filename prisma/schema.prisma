@@ -16,6 +16,7 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String
+  slug          String?   @unique
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   lastValidated DateTime  @default(now())

@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { Adapter } from 'next-auth/adapters'
 
-const VALIDATION_INTERVAL = 1000 * 60 * 60 * 24 // 24 hours
+const VALIDATION_INTERVAL = 1000 * 60 * 5 // 5 minutes
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
@@ -71,6 +71,23 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email
         token.lastValidated = Date.now()
         
+        // Get user slug and subscription status
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: {
+            slug: true,
+            subscriptions: {
+              where: {
+                status: { in: ['active', 'trialing'] },
+              },
+              take: 1,
+            },
+          },
+        })
+        
+        token.slug = dbUser?.slug || null
+        token.hasSubscription = (dbUser?.subscriptions.length || 0) > 0
+        
         // Update lastValidated in database
         await prisma.user.update({
           where: { id: user.id },
@@ -78,7 +95,7 @@ export const authOptions: NextAuthOptions = {
         })
       }
 
-      // Periodic validation to check if user still exists
+      // Periodic validation to check if user still exists and subscription status
       const lastValidated = token.lastValidated as number
       const now = Date.now()
       
@@ -86,12 +103,25 @@ export const authOptions: NextAuthOptions = {
         // Check if user still exists in database
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
+          select: {
+            slug: true,
+            subscriptions: {
+              where: {
+                status: { in: ['active', 'trialing'] },
+              },
+              take: 1,
+            },
+          },
         })
 
         if (!dbUser) {
           // User was deleted, invalidate session
           return null as any
         }
+
+        // Update slug and subscription status
+        token.slug = dbUser.slug || null
+        token.hasSubscription = dbUser.subscriptions.length > 0
 
         // Update last validated timestamp
         token.lastValidated = now
@@ -107,6 +137,8 @@ export const authOptions: NextAuthOptions = {
       if (token && session.user) {
         session.user.id = token.id as string
         session.user.email = token.email as string
+        session.user.slug = token.slug as string | null
+        session.user.hasSubscription = token.hasSubscription as boolean
       }
       return session
     },

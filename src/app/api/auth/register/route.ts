@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { generateSlug, slugExists } from '@/lib/username'
 
 export async function POST(req: Request) {
   try {
@@ -41,17 +42,29 @@ export async function POST(req: Request) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
+    // Generate unique slug
+    const fullName = `${firstname} ${lastname}`
+    let userSlug = generateSlug(fullName, email)
+    
+    // Ensure slug is unique (retry if collision)
+    let attempts = 0
+    while (await slugExists(userSlug) && attempts < 5) {
+      userSlug = generateSlug(fullName, email)
+      attempts++
+    }
+
     // Create user
     const user = await prisma.user.create({
       data: {
-        name: `${firstname} ${lastname}`,
+        name: fullName,
         email,
         password: hashedPassword,
+        slug: userSlug,
       },
     })
 
     return NextResponse.json(
-      { message: 'User created successfully', userId: user.id },
+      { message: 'User created successfully', userId: user.id, slug: userSlug },
       { status: 201 }
     )
   } catch (error) {
