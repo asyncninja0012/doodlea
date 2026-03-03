@@ -279,7 +279,7 @@ export default function LoginPage() {
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() => signIn('google', { callbackUrl: '/' })}
+                            onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
                             disabled={isLoading}
                             className="w-full">
                             <svg

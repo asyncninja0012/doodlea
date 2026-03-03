@@ -1,13 +1,15 @@
 # Doodlea - Development Guide
 
-> **Last Updated:** February 24, 2026  
-> **Version:** 1.0.0
+> **Last Updated:** March 3, 2026  
+> **Version:** 1.1.0
 
 ## Table of Contents
 - [Overview](#overview)
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
 - [Project Architecture](#project-architecture)
+- [Redux State Management](#redux-state-management)
+- [Project System](#project-system)
 - [Database Schema](#database-schema)
 - [Authentication System](#authentication-system)
 - [Subscription System](#subscription-system)
@@ -32,6 +34,9 @@ Doodlea is a Next.js application with a subscription-based business model. Users
 - 🛡️ **Protected Routes**: Middleware-based access control
 - 📊 **Dashboard**: Subscription-gated user dashboard
 - 🧪 **Test Mode**: Development subscription activation for testing
+- 📦 **Redux State Management**: RTK with server-side preloaded state
+- 🎨 **Project Creation**: Auto-numbered projects with gradient thumbnails
+- 🖼️ **Canvas System**: Shapes, viewport, and drawing tool state management
 
 ---
 
@@ -47,7 +52,126 @@ Doodlea is a Next.js application with a subscription-based business model. Users
 | **TypeScript** | - | Type safety |
 | **Tailwind CSS** | 4.x | Styling |
 | **bcryptjs** | 3.0.3 | Password hashing |
-| **Zod** | 4.3.6 | Schema validation |
+| **Redux Toolkit** | 2.8.2 | State management |
+
+---
+
+## Redux State Management
+
+### Architecture
+
+Redux Toolkit is used with a **preloaded server state** pattern:
+
+1. Server-side: `getPreloadedProfile()` fetches user data from DB
+2. Root layout passes preloaded state to `ReduxProvider`
+3. `makeStore(preloadedState)` creates the store with hydrated profile
+4. Client components read state via `useAppSelector`
+
+### Store Structure
+
+```typescript
+{
+  profile: ProfileState,    // User identity, subscription, credits
+  projects: ProjectsState,  // Project list with CRUD status
+  shapes: ShapesState,      // Canvas shapes, tool, selection
+  viewport: ViewportState,  // Zoom, pan, scale
+}
+```
+
+### Slices
+
+**Profile Slice** (`src/redux/slice/profile.ts`)
+```typescript
+interface ProfileState {
+  id: string
+  name: string
+  email: string
+  image: string
+  slug: string
+  hasSubscription: boolean
+  credits: number
+  plan: string
+  createdAt: string
+}
+// Actions: setProfile, updateCredits, clearProfile
+```
+
+**Projects Slice** (`src/redux/slice/projects/index.ts`)
+```typescript
+interface ProjectSummary {
+  _id: string
+  name: string
+  projectNumber: number
+  thumbnail: string
+  lastModified: number
+  createdAt: number
+  isPublic: boolean
+}
+// Actions: addProject, updateProject, deleteProject,
+//          createProjectStart, createProjectSuccess, createProjectFailure
+```
+
+**Shapes Slice** (`src/redux/slice/shapes/index.ts`)
+- Entity adapter for shapes (rect, ellipse, frame, freedraw, arrow, line, text)
+- Tool selection (select, frame, rect, ellipse, freedraw, arrow, line, text, eraser)
+- Selection map and frame counter
+
+**Viewport Slice** (`src/redux/slice/viewport/index.ts`)
+- Scale with min/max bounds
+- Translate (pan) with screen↔world coordinate transforms
+- Pan tracking, zoom step, and viewport modes
+
+### Provider Setup
+
+```typescript
+// src/app/layout.tsx (server component)
+const preloadedState = await getPreloadedProfile()
+
+<ReduxProvider preloadedState={{ profile: preloadedState }}>
+  {children}
+</ReduxProvider>
+```
+
+---
+
+## Project System
+
+### Project Creation Flow
+
+```
+User clicks "New Project" button
+  → useProjectCreation hook
+    → dispatch(createProjectStart())
+    → Generate SVG gradient thumbnail
+    → Read current shapes state from Redux
+    → POST /api/projects (name, thumbnail, sketchesData)
+      → Upsert ProjectCounter (atomic increment)
+      → Create Project record in DB
+    → dispatch(addProject({...}))
+    → dispatch(createProjectSuccess())
+    → toast.success()
+```
+
+### Auto-Incrementing Project Numbers
+
+Each user has their own `ProjectCounter` for sequential numbering:
+
+```typescript
+// Atomic upsert: creates counter if new, increments if exists
+const counter = await prisma.projectCounter.upsert({
+  where: { userId },
+  update: { nextProjectNumber: { increment: 1 } },
+  create: { userId, nextProjectNumber: 2 }, // First project = 1
+})
+const projectNumber = counter.nextProjectNumber - 1 || 1
+```
+
+### Gradient Thumbnail Generation
+
+Projects get a random SVG gradient thumbnail on creation:
+- 6 predefined gradient color pairs
+- Rendered as SVG with circle and rectangle decorations
+- Stored as base64 data URI (`data:image/svg+xml;base64,...`)
 
 ---
 
@@ -126,7 +250,11 @@ Doodlea is a Next.js application with a subscription-based business model. Users
        │
        ├─── Protected Route ──→ Middleware (checks JWT) ──→ Allow/Redirect
        │
-       └─── API Call ──→ API Route ──→ Prisma ──→ PostgreSQL
+       ├─── API Call ──→ API Route ──→ Prisma ──→ PostgreSQL
+       │
+       └─── Redux ──→ Client State (profile, projects, shapes, viewport)
+                         ↑
+                   Server preloads profile via getPreloadedProfile()
 ```
 
 ---
@@ -141,7 +269,7 @@ model User {
   email         String    @unique
   emailVerified DateTime?
   image         String?
-  password      String
+  password      String?   // Optional: not set for OAuth users
   slug          String?   @unique    // Unique slug: "name-a7x9k2"
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -188,18 +316,39 @@ model Subscription {
 ### Project Model
 ```prisma
 model Project {
-  id          String   @id @default(cuid())
-  userId      String
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id                   String   @id @default(cuid())
+  userId               String
+  name                 String
+  description          String?
+  styleGuide           String?
+  sketchesData         Json     // JSON structure matching Redux shapes state
+  viewportData         Json?    // Viewport state (scale, pan, etc.)
+  generatedDesignData  Json?    // Generated UI components
+  thumbnail            String?  // Base64 or URL for project thumbnail
+  moodBoardImages      String[] // Storage IDs for mood board
+  inspirationImages    String[] // Storage IDs for inspiration (max 6)
+  lastModified         DateTime @default(now())
+  createdAt            DateTime @default(now())
+  isPublic             Boolean  @default(false)
+  tags                 String[]
+  projectNumber        Int      // Auto-incrementing per user
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 ```
 
 **Other Models**: `Account`, `Session`, `VerificationToken`, `ProjectCounter`, `CreditsLedger`
+
+### ProjectCounter Model
+```prisma
+model ProjectCounter {
+  id                 String @id @default(cuid())
+  userId             String @unique
+  nextProjectNumber  Int    @default(1)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+```
 
 ---
 
@@ -394,6 +543,48 @@ Response:
 | `/api/subscriptions/create` | POST | Create subscription (production) |
 | `/api/subscriptions/activate-test` | POST | Activate test subscription (dev) |
 
+### Projects
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/projects` | POST | Create new project |
+| `/api/projects` | GET | List user's projects |
+| `/api/projects/[id]` | GET | Get single project by ID |
+
+**POST /api/projects**
+```typescript
+Request Body:
+{
+  name?: string       // Optional, defaults to "Project {number}"
+  thumbnail?: string  // Base64 SVG thumbnail
+  sketchesData?: {    // Current canvas state from Redux
+    shapes: object
+    tool: string
+    selected: object
+    frameCounter: number
+  }
+}
+
+Response (201):
+{
+  id: string
+  name: string
+  projectNumber: number
+  thumbnail: string | null
+  sketchesData: object
+  // ... all Project fields
+}
+```
+
+**GET /api/projects**
+```typescript
+Response:
+{
+  projects: ProjectSummary[]
+  total: number
+}
+```
+
 **POST /api/subscriptions/activate-test**
 ```typescript
 Request: None (uses session)
@@ -491,6 +682,10 @@ doodlea/
 │   │   │   │   │   └── route.ts       # NextAuth configuration
 │   │   │   │   └── register/
 │   │   │   │       └── route.ts       # User registration endpoint
+│   │   │   ├── projects/
+│   │   │   │   ├── route.ts           # POST (create) + GET (list) projects
+│   │   │   │   └── [id]/
+│   │   │   │       └── route.ts       # GET single project by ID
 │   │   │   └── subscriptions/
 │   │   │       ├── create/
 │   │   │       │   └── route.ts       # Production subscription creation
@@ -509,25 +704,46 @@ doodlea/
 │   │   │
 │   │   ├── dashboard/
 │   │   │   └── [slug]/
-│   │   │       └── page.tsx           # Dynamic dashboard page
+│   │   │       ├── layout.tsx         # Dashboard layout
+│   │   │       └── page.tsx           # Dashboard page (renders Navbar)
 │   │   │
 │   │   ├── globals.css                # Global styles
-│   │   ├── layout.tsx                 # Root layout
+│   │   ├── layout.tsx                 # Root layout (providers + preloaded state)
 │   │   └── page.tsx                   # Home page
 │   │
 │   ├── components/
+│   │   ├── buttons/
+│   │   │   └── project/
+│   │   │       └── index.tsx          # New Project creation button
+│   │   ├── navbar/
+│   │   │   └── index.tsx              # Main navbar with tabs, avatar, project name
 │   │   ├── providers/
 │   │   │   └── auth-provider.tsx      # NextAuth SessionProvider wrapper
 │   │   └── ui/                        # Reusable UI components (shadcn/ui)
 │   │
 │   ├── hooks/
-│   │   └── use-mobile.ts              # Mobile detection hook
+│   │   ├── use-mobile.ts             # Mobile detection hook
+│   │   └── use-project.ts            # Project creation hook (Redux + API)
 │   │
 │   ├── lib/
 │   │   ├── auth.ts                    # Auth utilities
 │   │   ├── prisma.ts                  # Prisma client singleton
+│   │   ├── profile.ts                 # Server-side getPreloadedProfile()
 │   │   ├── username.ts                # Slug generation utilities
 │   │   └── utils.ts                   # General utilities
+│   │
+│   ├── redux/
+│   │   ├── provider.tsx               # ReduxProvider with preloadedState
+│   │   ├── store.ts                   # Store config, makeStore(), typed hooks
+│   │   └── slice/
+│   │       ├── index.ts               # Slices registry
+│   │       ├── profile.ts             # Profile slice (user identity + subscription)
+│   │       ├── projects/
+│   │       │   └── index.ts           # Projects slice (CRUD + creation status)
+│   │       ├── shapes/
+│   │       │   └── index.ts           # Shapes slice (canvas entities + tools)
+│   │       └── viewport/
+│   │           └── index.ts           # Viewport slice (zoom, pan, transforms)
 │   │
 │   ├── theme/
 │   │   └── provider.tsx               # Theme provider (dark/light mode)
@@ -542,7 +758,6 @@ doodlea/
 ├── next.config.ts                     # Next.js configuration
 ├── package.json                       # Dependencies
 ├── tsconfig.json                      # TypeScript configuration
-├── tailwind.config.ts                 # Tailwind CSS configuration
 └── DEVELOPMENT_GUIDE.md              # This file
 ```
 

@@ -30,6 +30,10 @@ Open [http://localhost:3000](http://localhost:3000) to see the application.
 - 🛡️ **Route Protection** - Middleware-based access control
 - 📊 **Protected Dashboard** - Subscription-gated user dashboard
 - 🧪 **Test Mode** - Easy subscription activation for development
+- 📦 **Redux State Management** - RTK with server-side preloaded state
+- 🎨 **Project Creation** - Auto-numbered projects with gradient thumbnails
+- 🖼️ **Canvas System** - Shapes, viewport, and drawing tool state
+- 🌐 **Navbar** - Glassmorphism navbar with project context, tabs, and avatar
 
 ## 📚 Documentation
 
@@ -51,6 +55,7 @@ Complete documentation for developers:
 - **Framework**: Next.js 15.4.6 with App Router
 - **Auth**: NextAuth.js 4.24.13
 - **Database**: PostgreSQL with Prisma ORM 7.4.0
+- **State Management**: Redux Toolkit 2.8.2
 - **Styling**: Tailwind CSS 4.x
 - **UI Components**: shadcn/ui
 - **Language**: TypeScript
@@ -89,12 +94,19 @@ src/
 ├── app/
 │   ├── api/                 # API routes
 │   │   ├── auth/           # Authentication endpoints
+│   │   ├── projects/       # Project CRUD (POST, GET, GET by ID)
 │   │   └── subscriptions/  # Subscription management
 │   ├── auth/               # Auth pages (sign-in, sign-up)
 │   ├── billing/[slug]/     # Dynamic billing page
-│   └── dashboard/[slug]/   # Protected dashboard
+│   └── dashboard/[slug]/   # Protected dashboard with navbar
 ├── components/             # React components
-├── lib/                    # Utilities and configuration
+│   ├── buttons/            # Action buttons (New Project)
+│   ├── navbar/             # Main navigation bar
+│   └── ui/                 # shadcn/ui components
+├── hooks/                  # Custom hooks (use-project, use-mobile)
+├── lib/                    # Utilities (prisma, auth, profile, slug)
+├── redux/                  # Redux store, provider, and slices
+│   └── slice/              # profile, projects, shapes, viewport
 ├── types/                  # TypeScript type definitions
 └── middleware.ts           # Route protection middleware
 ```

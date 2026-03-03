@@ -5,6 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-03-03
+
+### Added
+- **Redux State Management**
+  - Redux Toolkit v2.8.2 integration with preloaded server state
+  - `ReduxProvider` component with `makeStore(preloadedState)` pattern
+  - Profile slice (`id`, `name`, `email`, `image`, `slug`, `credits`, `plan`, `hasSubscription`)
+  - Projects slice with full CRUD actions (`addProject`, `updateProject`, `deleteProject`, `createProjectStart/Success/Failure`)
+  - Shapes slice for canvas state (shapes entity adapter, tool selection, selection map, frame counter)
+  - Viewport slice for canvas zoom/pan state (scale, translate, pan modes, screen↔world transforms)
+  - Typed hooks (`useAppDispatch`, `useAppSelector`) exported from store
+  - Server-side `getPreloadedProfile()` helper for SSR → Redux hydration
+
+- **Navbar Component**
+  - Database-driven project name fetching via `/api/projects/[id]`
+  - Canvas and Style Guide tab navigation with active state
+  - User avatar with Google image support and fallback icon
+  - Credits placeholder display
+  - Help button with glassmorphism styling
+  - "New Project" creation button (rightmost position)
+  - Integrated with Redux for user profile data
+  - Glassmorphism design with `backdrop-blur`, `saturate-150`, semi-transparent borders
+
+- **Project Creation System**
+  - `POST /api/projects` — Create project with auto-incrementing number per user
+  - `GET /api/projects` — List user's projects with summary data
+  - `GET /api/projects/[id]` — Fetch single project by ID
+  - `useProjectCreation` hook with Redux integration
+  - SVG gradient thumbnail auto-generation (`generateGradientThumbnail`)
+  - `ProjectCounter` model for atomic per-user project numbering via `upsert`
+  - Passes current Redux shapes state (`shapes`, `tool`, `selected`, `frameCounter`) to API
+  - `CreateProject` button component with loading state
+
+- **Root Layout Providers**
+  - `AuthProvider` → `ThemeProvider` → `ReduxProvider` chain in root layout
+  - Server-side profile preloading with `getPreloadedProfile()`
+  - `suppressHydrationWarning` on `<html>` for VS Code dev compatibility
+
+### Changed
+- **Dashboard Page**
+  - Stripped to only render `<Navbar />` (removed previous content)
+  - Added minimal passthrough layout (`layout.tsx`)
+
+- **Billing Page**
+  - Uses `useSession().update()` for proper session refresh after test subscription activation
+  - Hard navigation to dashboard after activation instead of client-side redirect
+
+- **Auth Pages**
+  - Google OAuth `callbackUrl` changed from `/` to `/dashboard` on both sign-in and sign-up pages
+
+- **Middleware**
+  - Updated to not redirect slugless OAuth users to `/auth/error`
+  - Lets slugless users through gracefully during OAuth slug generation
+
+- **NextAuth JWT Callback**
+  - Auto-generates slug for OAuth users who don't have one (using `generateSlug`)
+  - Handles `trigger === 'update'` for session refresh after subscription changes
+
+### Fixed
+- **Google OAuth Registration** — `OAuthCreateAccount` error due to required `password` field; changed to `password String?` (optional)
+- **Post-OAuth Redirect** — Users redirected to landing page instead of dashboard after Google sign-in
+- **Slugless OAuth Users** — Middleware redirect loop for users without a slug
+- **Test Subscription Activation** — `fetch('/api/auth/session?update=true')` doesn't trigger JWT refresh; switched to `useSession().update()`
+- **Hydration Mismatch** — VS Code injecting `--vsc-domain` style attribute on `<html>` tag
+- **Avatar Fallback** — Radix Avatar not showing fallback when `src=""`; added conditional render
+- **Avatar Icon Visibility** — `text-black` class on `User` icon invisible on dark theme; removed
+- **Navbar Positioning** — Fixed `justifty-end` typo and added `ml-auto` for right-aligned section
+- **Duplicate Import** — Removed duplicate `LayoutTemplate` import in navbar
+
+### Database Changes
+- `User.password` changed from `String` (required) to `String?` (optional) for OAuth support
+
+### New Dependencies
+- `@reduxjs/toolkit` v2.8.2
+
+---
+
 ## [1.0.0] - 2026-02-24
 
 ### Added

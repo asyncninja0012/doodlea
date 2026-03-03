@@ -23,8 +23,9 @@ export async function middleware(request: NextRequest) {
     const userSlug = token.slug as string | null
     
     if (!userSlug) {
-      // If user doesn't have a slug (old user), create one or handle appropriately
-      return NextResponse.redirect(new URL('/auth/error', request.url))
+      // User doesn't have a slug yet (e.g. just registered via OAuth)
+      // Let them through — the JWT callback will generate a slug on next request
+      return NextResponse.redirect(new URL('/dashboard', request.url))
     }
     
     if (hasSubscription) {
@@ -39,7 +40,8 @@ export async function middleware(request: NextRequest) {
     const userSlug = token.slug as string | null
     
     if (!userSlug) {
-      return NextResponse.redirect(new URL('/auth/sign-in', request.url))
+      // Slug not yet generated — let the page load, JWT callback will create it
+      return NextResponse.next()
     }
     
     const pathParts = request.nextUrl.pathname.split('/')

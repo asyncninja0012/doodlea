@@ -5,6 +5,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { Adapter } from 'next-auth/adapters'
+import { generateSlug } from '@/lib/username'
 
 const VALIDATION_INTERVAL = 1000 * 60 * 5 // 5 minutes
 
@@ -76,6 +77,8 @@ export const authOptions: NextAuthOptions = {
           where: { id: user.id },
           select: {
             slug: true,
+            name: true,
+            email: true,
             subscriptions: {
               where: {
                 status: { in: ['active', 'trialing'] },
@@ -84,15 +87,53 @@ export const authOptions: NextAuthOptions = {
             },
           },
         })
-        
-        token.slug = dbUser?.slug || null
+
+        let userSlug = dbUser?.slug || null
+
+        // Auto-generate slug for OAuth users who don't have one yet
+        if (!userSlug && dbUser) {
+          let newSlug = generateSlug(dbUser.name || '', dbUser.email)
+          // Ensure uniqueness
+          let exists = await prisma.user.findUnique({ where: { slug: newSlug } })
+          while (exists) {
+            newSlug = generateSlug(dbUser.name || '', dbUser.email)
+            exists = await prisma.user.findUnique({ where: { slug: newSlug } })
+          }
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { slug: newSlug, lastValidated: new Date() },
+          })
+          userSlug = newSlug
+        } else {
+          // Update lastValidated in database
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { lastValidated: new Date() },
+          })
+        }
+
+        token.slug = userSlug
         token.hasSubscription = (dbUser?.subscriptions.length || 0) > 0
-        
-        // Update lastValidated in database
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { lastValidated: new Date() },
+      }
+
+      // Force re-read from DB when client calls update()
+      if (trigger === 'update') {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: {
+            slug: true,
+            subscriptions: {
+              where: { status: { in: ['active', 'trialing'] } },
+              take: 1,
+            },
+          },
         })
+        if (dbUser) {
+          token.slug = dbUser.slug || token.slug
+          token.hasSubscription = dbUser.subscriptions.length > 0
+          token.lastValidated = Date.now()
+        }
+        return token
       }
 
       // Periodic validation to check if user still exists and subscription status
@@ -144,6 +185,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+  debug: true,
 }
 
 const handler = NextAuth(authOptions)

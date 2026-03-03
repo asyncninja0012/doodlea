@@ -1,6 +1,6 @@
 'use client'
 
-import { useSession } from 'next-auth/react'
+import { useSession, signIn } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CheckIcon } from 'lucide-react'
 
 export default function BillingPage() {
-  const { data: session, status } = useSession()
+  const { data: session, status, update } = useSession()
   const router = useRouter()
   const params = useParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -82,16 +82,14 @@ export default function BillingPage() {
       })
 
       if (response.ok) {
-        // Force session update before redirecting
-        await fetch('/api/auth/session?update=true')
+        // Trigger session update so JWT callback re-reads from DB
+        await update()
         
-        // Wait a moment for session to update
-        setTimeout(() => {
-          const userSlug = session!.user.slug
-          if (userSlug) {
-            window.location.href = `/dashboard/${userSlug}`
-          }
-        }, 500)
+        // Hard navigate to dashboard so middleware picks up the new token
+        const userSlug = session!.user.slug
+        if (userSlug) {
+          window.location.href = `/dashboard/${userSlug}`
+        }
       } else {
         const data = await response.json()
         alert(data.error || 'Failed to activate test subscription')
