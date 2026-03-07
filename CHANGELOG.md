@@ -5,6 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-03-07
+
+### Added
+- **Style Guide System**
+  - New workspace route: `src/app/dashboard/[slug]/(workspace)/style-guide/`
+  - `StyleGuideContent` client component managing Colours / Typography / Moodboard tabs via CSS `hidden` class (avoids unmount on tab switch in Radix UI v2)
+  - Server-side `queries.ts` with `styleGuideQuery` and `MoodBoardImagesQuery` fetching and resolving Uploadthing CDN URLs
+  - `ThemeContent` and `ColorTheme` components for colour sections
+  - `StyleGuideTypography` component for typography sections
+  - `ColorSwatch` component for individual colour display
+  - Style guide TypeScript interfaces (`StyleGuide`, `ColorSection`, `ColorSwatch`, `TypographySection`, `TypographyStyle`) in `src/redux/api/style-guide/index.ts`
+
+- **Moodboard Feature**
+  - Drag-and-drop image upload zone with visual glow ring on active drag (`ring-4 ring-primary/30`)
+  - Desktop scattered layout with seeded-random rotation and overlap positioning (`hidden lg:flex`)
+  - Mobile scattered layout with absolute positioned image cards (`lg:hidden`)
+  - "Add More" button (bottom-right, visible when ≥1 image, toast if at 5-image cap)
+  - Empty-state prompt with `ImagePlus` icon and click-to-browse overlay
+  - `ImagesBoard` component — individual image card with hover-reveal X button (red on hover), upload spinner, error icon
+  - Upload progress state tracking (`uploading` / `uploaded` / `error` per image)
+
+- **Uploadthing Cloud Storage Integration**
+  - Installed `uploadthing` v7.7.4 and `@uploadthing/react` v7.3.3
+  - `src/app/api/uploadthing/core.ts` — file router with `moodBoardImage` route (4 MB max, auth middleware)
+  - `src/app/api/uploadthing/route.ts` — Uploadthing `GET`/`POST` route handler
+  - `src/lib/uploadthing.ts` — `UTApi` singleton (`utapi`) for server-side file operations
+  - `next.config.ts` updated with `remotePatterns` for `utfs.io` and `*.ufs.sh` CDN domains
+
+- **Moodboard API Routes**
+  - `POST /api/moodboard/upload` — accepts `multipart/form-data`, calls `utapi.uploadFiles()`, returns `{ storageId, url }`
+  - `POST /api/moodboard/add` — persists a file key (`storageId`) to `Project.moodBoardImages[]`
+  - `POST /api/moodboard/remove` — removes key from DB and calls `utapi.deleteFiles()` to purge from storage
+  - `POST /api/moodboard/generate-upload-url` — returns client-side upload endpoint (`/api/moodboard/upload`)
+
+- **`useMoodBoard` Hook** (`src/hooks/use-styles.ts`)
+  - `"use client"` directive
+  - `useRef(false)` `seededRef` guard — server images seeded into form state only once on mount; prevents ghost images reappearing after tab switch
+  - Optimistic `removeImage` — removes from UI instantly, fires server `POST /api/moodboard/remove` in background
+  - Upload uses `FormData` + `formData.append('file', file)` (fixed raw-body 500 error)
+  - Batch drop via `getValues('images')` to avoid stale closure bug when dropping multiple files
+  - `canAddMore` exported (`images.length < 5`) for consumers
+
+- **Workspace Restructure**
+  - New route group `(workspace)` under `dashboard/[slug]/` with shared `Navbar` layout
+  - `canvas/` page and layout placeholders
+  - Dashboard page (`(workspace)/page.tsx`) fetches and dispatches projects to Redux on mount
+  - `ProjectsList` component with grid card layout, thumbnails, relative-time via `date-fns`
+  - `ProjectsProvider` client component hydrates Redux from server-fetched projects
+
+- **Navbar Fix**
+  - Tab `href` now correctly includes `/${me.slug}/` segment (was missing slug in path)
+
+### Fixed
+- **Upload 500 Error** — Hook was sending raw file body; fixed to use `FormData` with `formData.append('file', file)`
+- **Ghost Images After Deletion** — `seededRef` ensures server images only seed form state once; tab switching no longer replays the seed
+- **Tab Persistence** — Moodboard state now survives tab switches; Radix v2 does not support `forceMount`, so `StyleGuideContent` owns all tab panels and hides/shows with CSS `hidden`
+- **Desktop Image Positioning** — `marginTop` changed from `-120px` to `0px` for correct vertical centering
+- **CSS Typo** — `"relative-border-2"` → `"relative border-2"` in moodboard container (drag zone was invisible)
+- **Gradient Overlay Blocking Drag** — Added `pointer-events-none` to the background gradient div
+- **X Button Not Showing** — `"absolute-group"` → `"absolute group"` (two separate Tailwind classes) in `ImagesBoard`
+- **Tab Value Mismatch** — Old code used `value='mood-board'`; corrected to `value='moodboard'`
+- **Stale Closure in Batch Drop** — Drop handler now reads `getValues('images')` once and sets all new images in a single `setValue` call
+- **`/dashboard/[slug]` routing** — Removed old top-level `page.tsx` / `layout.tsx`; replaced with `(workspace)` route group
+
+### Changed
+- `Project.moodBoardImages` stores Uploadthing file **keys** (not base64 or URLs); `MoodBoardImagesQuery` resolves keys → CDN URLs via `utapi.getFileUrls()` at read time
+- Style guide `layout.tsx` simplified to `<>{children}</>` (Tabs UI moved into `StyleGuideContent`)
+- `src/app/dashboard/[slug]/layout.tsx` and `page.tsx` deleted; replaced by the `(workspace)` route group
+
+### New Dependencies
+- `uploadthing` v7.7.4
+- `@uploadthing/react` v7.3.3
+
+### New Environment Variables
+- `UPLOADTHING_TOKEN` — Required for moodboard uploads. Obtain from [uploadthing.com/dashboard](https://uploadthing.com/dashboard) → API Keys.
+
+---
+
 ## [1.1.0] - 2026-03-03
 
 ### Added

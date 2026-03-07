@@ -34,6 +34,9 @@ Open [http://localhost:3000](http://localhost:3000) to see the application.
 - 🎨 **Project Creation** - Auto-numbered projects with gradient thumbnails
 - 🖼️ **Canvas System** - Shapes, viewport, and drawing tool state
 - 🌐 **Navbar** - Glassmorphism navbar with project context, tabs, and avatar
+- 🗂️ **Style Guide** - Per-project style guide with colours, typography, and moodboard tabs
+- 📸 **Moodboard** - Drag-and-drop image board with Uploadthing cloud storage (up to 5 images)
+- ⚡ **Optimistic UI** - Instant image removal with background server sync
 
 ## 📚 Documentation
 
@@ -56,8 +59,9 @@ Complete documentation for developers:
 - **Auth**: NextAuth.js 4.24.13
 - **Database**: PostgreSQL with Prisma ORM 7.4.0
 - **State Management**: Redux Toolkit 2.8.2
+- **Cloud Storage**: Uploadthing 7.7.4 (moodboard images)
 - **Styling**: Tailwind CSS 4.x
-- **UI Components**: shadcn/ui
+- **UI Components**: shadcn/ui (Radix UI)
 - **Language**: TypeScript
 
 ## 📋 Environment Variables
@@ -70,7 +74,10 @@ NEXTAUTH_SECRET="generate-with-openssl-rand-base64-32"
 NEXTAUTH_URL="http://localhost:3000"
 GOOGLE_CLIENT_ID="optional-for-oauth"
 GOOGLE_CLIENT_SECRET="optional-for-oauth"
+UPLOADTHING_TOKEN="your-uploadthing-token"    # Required for moodboard image uploads
 ```
+
+> Get `UPLOADTHING_TOKEN` from [uploadthing.com/dashboard](https://uploadthing.com/dashboard) → API Keys.
 
 ## 🔑 Key Commands
 
@@ -94,17 +101,38 @@ src/
 ├── app/
 │   ├── api/                 # API routes
 │   │   ├── auth/           # Authentication endpoints
+│   │   ├── moodboard/      # Moodboard CRUD (add, remove, upload, generate-upload-url)
 │   │   ├── projects/       # Project CRUD (POST, GET, GET by ID)
-│   │   └── subscriptions/  # Subscription management
+│   │   ├── style-guide/    # Style guide generation
+│   │   ├── subscriptions/  # Subscription management
+│   │   └── uploadthing/    # Uploadthing file router (core.ts + route.ts)
 │   ├── auth/               # Auth pages (sign-in, sign-up)
 │   ├── billing/[slug]/     # Dynamic billing page
-│   └── dashboard/[slug]/   # Protected dashboard with navbar
+│   └── dashboard/[slug]/   # Protected dashboard
+│       └── (workspace)/    # Workspace layout with Navbar
+│           ├── canvas/     # Canvas page
+│           └── style-guide/ # Style guide (colours, typography, moodboard)
 ├── components/             # React components
 │   ├── buttons/            # Action buttons (New Project)
 │   ├── navbar/             # Main navigation bar
+│   ├── projects/           # Projects list + provider
+│   ├── style/              # Style guide components
+│   │   ├── mood-board/     # Moodboard drop zone + image cards
+│   │   ├── swatch/         # Color swatch component
+│   │   ├── theme/          # Color theme grid
+│   │   ├── typography/     # Typography guide
+│   │   └── style-guide-content.tsx  # Client component managing tabs + CSS hidden
 │   └── ui/                 # shadcn/ui components
-├── hooks/                  # Custom hooks (use-project, use-mobile)
-├── lib/                    # Utilities (prisma, auth, profile, slug)
+├── hooks/                  # Custom hooks
+│   ├── use-project.ts      # Project creation hook
+│   ├── use-mobile.ts       # Mobile detection
+│   └── use-styles.ts       # Moodboard state, drag-drop, upload logic
+├── lib/                    # Utilities
+│   ├── auth.ts             # NextAuth config
+│   ├── prisma.ts           # Prisma client
+│   ├── profile.ts          # Profile helpers
+│   ├── uploadthing.ts      # UTApi singleton for server-side usage
+│   └── utils.ts            # cn() and helpers
 ├── redux/                  # Redux store, provider, and slices
 │   └── slice/              # profile, projects, shapes, viewport
 ├── types/                  # TypeScript type definitions
@@ -156,7 +184,8 @@ When adding new features:
 3. Create API routes in `src/app/api/`
 4. Build UI components
 5. Update middleware for route protection
-6. **Update [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md) with your changes**
+6. For file uploads, use the Uploadthing file router at `src/app/api/uploadthing/core.ts`
+7. **Update [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md) with your changes**
 
 ## 🐛 Troubleshooting
 

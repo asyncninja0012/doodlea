@@ -29,8 +29,9 @@ Thank you for your interest in contributing to Doodlea! This document provides g
 1. **Fork the repository** and clone it locally
 2. **Install dependencies**: `npm install`
 3. **Set up environment**: Copy `.env.example` to `.env` and configure
-4. **Set up database**: Run `npx prisma db push` and `npx prisma generate`
-5. **Start development**: Run `npm run dev`
+4. **Add Uploadthing token**: Obtain `UPLOADTHING_TOKEN` from [uploadthing.com/dashboard](https://uploadthing.com/dashboard) and add to `.env`. This is **required** for the moodboard feature to work in development.
+5. **Set up database**: Run `npx prisma db push` and `npx prisma generate`
+6. **Start development**: Run `npm run dev`
 
 For detailed setup instructions, see [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md).
 
@@ -280,6 +281,9 @@ chore(deps): upgrade Next.js to 15.5.0
 - `api` - API endpoints
 - `db` - Database schema
 - `ui` - UI components
+- `moodboard` - Moodboard feature (upload, drag-drop, storage)
+- `style-guide` - Style guide tabs (colours, typography)
+- `storage` - Uploadthing or cloud storage changes
 
 ---
 
@@ -293,6 +297,7 @@ chore(deps): upgrade Next.js to 15.5.0
 - ✅ Documentation updated
 - ✅ Changelog updated
 - ✅ No console errors or warnings
+- ✅ `UPLOADTHING_TOKEN` present in `.env` if touching moodboard/storage code
 
 ### PR Template
 
@@ -333,6 +338,58 @@ How to test these changes:
 2. All CI checks must pass
 3. No merge conflicts
 4. Documentation complete
+
+---
+
+## Patterns & Architecture Notes
+
+### Optimistic UI Updates
+
+When removing items from a list (e.g. moodboard images), apply the **optimistic deletion** pattern:
+
+1. Update client state immediately (so the UI responds instantly)
+2. Show a success toast
+3. Fire the server request in the background; on failure, show an error toast
+
+```typescript
+// Example from useMoodBoard.removeImage
+const removeImage = async (imageId: string) => {
+  // 1. Remove from UI instantly
+  setValue('images', images.filter(img => img.id !== imageId))
+  toast.success('Image removed')
+
+  // 2. Server sync in background
+  removeMoodBoardImage(projectId, storageId).catch(() =>
+    toast.error('Failed to remove from server')
+  )
+}
+```
+
+### CSS-Based Tab Persistence
+
+When using Radix UI v2 (`radix-ui` unified package) tabs and you need a tab panel to remain mounted across tab switches, **do not** use `forceMount` (it is broken in v2). Instead, own the active tab state yourself and hide inactive panels with `className={cn(activeTab !== 'value' && 'hidden')}`.
+
+### seededRef Pattern
+
+When a hook receives server-fetched data as a prop and seeds client state from it, use a `useRef(false)` guard to ensure the seed only runs **once** (on first mount):
+
+```typescript
+const seededRef = useRef(false)
+useEffect(() => {
+  if (seededRef.current) return
+  // seed state
+  seededRef.current = true
+}, [serverData, setValue])
+```
+
+Without this, if the parent re-renders (e.g. on tab switch), the effect re-runs and overwrites locally-modified state.
+
+### Cloud Storage (Uploadthing)
+
+- Store only the file **key** in the database, not the URL
+- Resolve keys → CDN URLs at read time using `utapi.getFileUrls()`
+- Always call `utapi.deleteFiles(key)` when removing a file from the DB
+- The `UTApi` singleton is in `src/lib/uploadthing.ts` — import `utapi` for server-side operations
 
 ---
 

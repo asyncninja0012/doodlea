@@ -1,7 +1,7 @@
 # Doodlea - Development Guide
 
-> **Last Updated:** March 3, 2026  
-> **Version:** 1.1.0
+> **Last Updated:** March 7, 2026  
+> **Version:** 1.2.0
 
 ## Table of Contents
 - [Overview](#overview)
@@ -10,6 +10,9 @@
 - [Project Architecture](#project-architecture)
 - [Redux State Management](#redux-state-management)
 - [Project System](#project-system)
+- [Style Guide System](#style-guide-system)
+- [Moodboard Feature](#moodboard-feature)
+- [Uploadthing Cloud Storage](#uploadthing-cloud-storage)
 - [Database Schema](#database-schema)
 - [Authentication System](#authentication-system)
 - [Subscription System](#subscription-system)
@@ -37,6 +40,8 @@ Doodlea is a Next.js application with a subscription-based business model. Users
 - 📦 **Redux State Management**: RTK with server-side preloaded state
 - 🎨 **Project Creation**: Auto-numbered projects with gradient thumbnails
 - 🖼️ **Canvas System**: Shapes, viewport, and drawing tool state management
+- 🗂️ **Style Guide**: Per-project style guide with colours, typography, and moodboard tabs
+- 📸 **Moodboard**: Drag-and-drop image board backed by Uploadthing cloud storage
 
 ---
 
@@ -175,6 +180,228 @@ Projects get a random SVG gradient thumbnail on creation:
 
 ---
 
+## Style Guide System
+
+### Overview
+
+Each project has a Style Guide page at `/dashboard/[slug]/style-guide?project=[id]` with three tabs: **Colours**, **Typography**, and **Moodboard**.
+
+### Architecture: CSS-Based Tab Persistence
+
+Radix UI v2 (the unified `radix-ui` package) does **not** support `forceMount` on `TabsContent`. To keep the Moodboard component always mounted (preserving upload state and preventing ghost images on tab switch), `StyleGuideContent` manages its own active-tab state and renders all three panels simultaneously, hiding inactive ones with Tailwind's `hidden` class:
+
+```tsx
+// src/components/style/style-guide-content.tsx
+const [activeTab, setActiveTab] = useState('colours')
+
+<div className={cn(activeTab !== 'moodboard' && 'hidden')}>
+  <Moodboard guideImages={guideImages} />
+</div>
+```
+
+This means **never unmounting** the Moodboard component, so all `useMoodBoard` hook state (images array, upload progress) survives tab switches.
+
+### Server Data Flow
+
+```
+page.tsx (Server Component)
+  ├── styleGuideQuery()        → JSON-parsed style guide (colours + typography)
+  └── MoodBoardImagesQuery()   → storageIds from DB → resolved CDN URLs via utapi.getFileUrls()
+       └── returns MoodBoardImage[]
+             ↓
+        StyleGuideContent (Client Component)
+             ├── ThemeContent      (colours tab)
+             ├── StyleGuideTypography (typography tab)
+             └── Moodboard         (moodboard tab, always mounted)
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/app/dashboard/[slug]/(workspace)/style-guide/page.tsx` | Server component — fetches data, passes to `StyleGuideContent` |
+| `src/app/dashboard/[slug]/(workspace)/style-guide/queries.ts` | `styleGuideQuery` + `MoodBoardImagesQuery` |
+| `src/components/style/style-guide-content.tsx` | Client component — owns Tabs + CSS-based hiding |
+| `src/components/style/theme/index.tsx` | `ColorTheme` + `ThemeContent` for colour sections |
+| `src/components/style/swatch/index.tsx` | `ColorSwatch` — individual colour chip |
+| `src/components/style/typography/index.tsx` | Typography section cards |
+| `src/redux/api/style-guide/index.ts` | `StyleGuide` TypeScript interfaces |
+
+---
+
+## Moodboard Feature
+
+### User Experience
+
+- Drag images onto the drop zone or click to browse (up to **5 images** per project)
+- Images appear as scattered, slightly-rotated cards (seeded-random layout)
+- Hover any card to reveal a red-on-hover **×** button for instant removal
+- Glow ring (`ring-4 ring-primary/30`) activates while dragging
+- "Add More" button appears (bottom-right) once at least one image is present
+- Toast displayed when image cap is reached
+
+### `useMoodBoard` Hook (`src/hooks/use-styles.ts`)
+
+```typescript
+export const useMoodBoard = (guideImages: MoodBoardImage[]) => {
+  // seededRef: seeds form state from server images ONCE only
+  const seededRef = useRef(false)
+
+  // react-hook-form manages images array
+  const { watch, setValue, getValues } = useForm<{ images: MoodBoardImage[] }>()
+
+  // Optimistic removal — updates UI instantly, fires DELETE in background
+  const removeImage = async (imageId: string) => { ... }
+
+  // Batch drop — reads getValues() to avoid stale closure
+  const handleDrop = (e: DragEvent) => { ... }
+
+  return { images, dragActive, addImage, removeImage, handleDrag, handleDrop, handleFileInput, canAddMore }
+}
+```
+
+#### `seededRef` Pattern
+
+The hook seeds form state from `guideImages` (server-fetched) exactly **once** on first mount:
+
+```typescript
+useEffect(() => {
+  if (seededRef.current) return   // ← guard: never run again
+  if (guideImages?.length > 0) {
+    setValue('images', serverImages)
+  }
+  seededRef.current = true
+}, [guideImages, setValue])
+```
+
+Without this guard, switching tabs would trigger a re-render and re-run the effect, causing deleted images to reappear ("ghost images").
+
+#### Optimistic Deletion
+
+```typescript
+const removeImage = async (imageId: string) => {
+  // 1. Remove from UI immediately
+  setValue('images', images.filter(img => img.id !== imageId))
+  toast.success('Image removed from mood board')
+
+  // 2. Fire server DELETE in background (don't block UI)
+  if (imageToRemove.isFromServer && imageToRemove.storageId && ProjectId) {
+    removeMoodBoardImage(ProjectId, imageToRemove.storageId).catch(console.error)
+  }
+}
+```
+
+### Image Upload Flow
+
+```
+User drops / selects file
+  ↓
+ addImage() — creates local MoodBoardImage with blob: URL, uploading: false
+  ↓
+ useEffect detects pending image (uploaded: false, uploading: false)
+  ↓
+ uploadImage(file):
+  1. POST /api/moodboard/generate-upload-url  → returns "/api/moodboard/upload"
+  2. POST /api/moodboard/upload (FormData)     → utapi.uploadFiles() → { storageId, url }
+  3. POST /api/moodboard/add                  → persists storageId to Project.moodBoardImages[]
+  ↓
+ image state updated: { storageId, url, uploaded: true, isFromServer: true }
+```
+
+### Layout: Scattered Cards
+
+Both mobile and desktop use a **seeded pseudo-random** layout to give each image a stable rotation and offset:
+
+```typescript
+const seed = image.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0)
+const rotation = ((seed * 9301 + 49297) % 233280 / 233280 - 0.5) * 20
+```
+
+Desktop stacks images horizontally with controlled overlap (`spacing = imageWidth - overlapAmount`).
+
+---
+
+## Uploadthing Cloud Storage
+
+### Why Uploadthing
+
+Moodboard images used to be stored as base64 strings directly in PostgreSQL. This caused:
+- Extremely large rows
+- Slow queries
+- No CDN delivery
+
+Uploadthing provides a CDN-backed, S3-compatible storage with a simple Node.js SDK.
+
+### Setup
+
+1. Create an account at [uploadthing.com](https://uploadthing.com)
+2. Create a new app in the dashboard
+3. Copy your **secret token** (not just the App ID)
+4. Add to `.env`:
+   ```env
+   UPLOADTHING_TOKEN="eyJhcHBJZC..."  # Full token string
+   ```
+
+### File Router (`src/app/api/uploadthing/core.ts`)
+
+```typescript
+export const ourFileRouter = {
+  moodBoardImage: f({ image: { maxFileSize: '4MB', maxFileCount: 5 } })
+    .middleware(async () => {
+      const session = await getServerSession(authOptions)
+      if (!session?.user?.id) throw new Error('Unauthorized')
+      return { userId: session.user.id }
+    })
+    .onUploadComplete(async ({ file }) => {
+      return { url: file.ufsUrl, key: file.key }
+    }),
+} satisfies FileRouter
+```
+
+### Server-Side API (`src/lib/uploadthing.ts`)
+
+```typescript
+import { UTApi } from 'uploadthing/server'
+export const utapi = new UTApi()
+```
+
+Used in:
+- `upload/route.ts` → `utapi.uploadFiles(file)` → returns `{ key, ufsUrl }`
+- `remove/route.ts` → `utapi.deleteFiles(storageId)`
+- `queries.ts` → `utapi.getFileUrls(storageId)` → returns CDN URL
+
+### Storage Model
+
+The database stores only the **Uploadthing file key** (e.g., `abc123.jpg`), not the URL:
+
+```prisma
+model Project {
+  moodBoardImages String[]  // Uploadthing file keys
+}
+```
+
+At read time, `MoodBoardImagesQuery` resolves keys → URLs:
+
+```typescript
+const urlResult = await utapi.getFileUrls(storageId)
+const url = urlResult.data[0]?.url
+```
+
+This means URLs are always fresh CDN links even if the CDN domain changes.
+
+### Image Domains
+
+`next.config.ts` allows images from Uploadthing CDN:
+
+```typescript
+remotePatterns: [
+  { protocol: 'https', hostname: 'utfs.io' },
+  { protocol: 'https', hostname: '*.ufs.sh' },
+]
+```
+
+---
+
 ## Getting Started
 
 ### Prerequisites
@@ -209,6 +436,9 @@ Projects get a random SVG gradient thumbnail on creation:
    # Google OAuth (Optional)
    GOOGLE_CLIENT_ID="your-google-client-id"
    GOOGLE_CLIENT_SECRET="your-google-client-secret"
+
+   # Uploadthing (Required for moodboard uploads)
+   UPLOADTHING_TOKEN="your-uploadthing-token"
    ```
 
 4. **Set up the database**
@@ -551,6 +781,42 @@ Response:
 | `/api/projects` | GET | List user's projects |
 | `/api/projects/[id]` | GET | Get single project by ID |
 
+### Moodboard
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/moodboard/upload` | POST | Upload image to Uploadthing; returns `{ storageId, url }` |
+| `/api/moodboard/add` | POST | Persist `storageId` to `Project.moodBoardImages[]` |
+| `/api/moodboard/remove` | POST | Remove `storageId` from DB and delete from Uploadthing |
+| `/api/moodboard/generate-upload-url` | POST | Returns client-side upload endpoint URL |
+| `/api/uploadthing` | GET/POST | Uploadthing native file router (used by SDK) |
+
+**POST /api/moodboard/upload**
+```typescript
+// Request: multipart/form-data with key 'file'
+// Response (200):
+{
+  storageId: string  // Uploadthing file key
+  url: string        // CDN URL
+}
+```
+
+**POST /api/moodboard/add**
+```typescript
+// Request body:
+{ projectId: string; storageId: string }
+// Response (200):
+{ success: true; imageCount: number }
+```
+
+**POST /api/moodboard/remove**
+```typescript
+// Request body:
+{ projectId: string; storageId: string }
+// Response (200):
+{ success: true; imageCount: number }
+```
+
 **POST /api/projects**
 ```typescript
 Request Body:
@@ -638,6 +904,9 @@ NEXTAUTH_URL="http://localhost:3000"     # Production: https://yourdomain.com
 # Optional: Google OAuth
 GOOGLE_CLIENT_ID="xxx.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET="GOCSPX-xxx"
+
+# Uploadthing (Required for moodboard image uploads)
+UPLOADTHING_TOKEN="eyJhcHBJZC..."  # From uploadthing.com/dashboard → API Keys
 ```
 
 ### Google OAuth Setup
@@ -682,15 +951,27 @@ doodlea/
 │   │   │   │   │   └── route.ts       # NextAuth configuration
 │   │   │   │   └── register/
 │   │   │   │       └── route.ts       # User registration endpoint
+│   │   │   ├── moodboard/
+│   │   │   │   ├── upload/
+│   │   │   │   │   └── route.ts       # POST — accepts FormData, calls utapi.uploadFiles()
+│   │   │   │   ├── add/
+│   │   │   │   │   └── route.ts       # POST — persists storageId to Project.moodBoardImages[]
+│   │   │   │   ├── remove/
+│   │   │   │   │   └── route.ts       # POST — removes from DB + utapi.deleteFiles()
+│   │   │   │   └── generate-upload-url/
+│   │   │   │       └── route.ts       # POST — returns upload endpoint URL
 │   │   │   ├── projects/
 │   │   │   │   ├── route.ts           # POST (create) + GET (list) projects
 │   │   │   │   └── [id]/
 │   │   │   │       └── route.ts       # GET single project by ID
-│   │   │   └── subscriptions/
-│   │   │       ├── create/
-│   │   │       │   └── route.ts       # Production subscription creation
-│   │   │       └── activate-test/
-│   │   │           └── route.ts       # Test subscription activation
+│   │   │   ├── subscriptions/
+│   │   │   │   ├── create/
+│   │   │   │   │   └── route.ts       # Production subscription creation
+│   │   │   │   └── activate-test/
+│   │   │   │       └── route.ts       # Test subscription activation
+│   │   │   └── uploadthing/
+│   │   │       ├── core.ts            # FileRouter definition (moodBoardImage route)
+│   │   │       └── route.ts           # Uploadthing GET+POST handler
 │   │   │
 │   │   ├── auth/
 │   │   │   ├── sign-in/
@@ -704,8 +985,15 @@ doodlea/
 │   │   │
 │   │   ├── dashboard/
 │   │   │   └── [slug]/
-│   │   │       ├── layout.tsx         # Dashboard layout
-│   │   │       └── page.tsx           # Dashboard page (renders Navbar)
+│   │   │       └── (workspace)/       # Route group — shared Navbar layout
+│   │   │           ├── layout.tsx     # Wraps children with <Navbar />
+│   │   │           ├── page.tsx       # Projects list page
+│   │   │           ├── canvas/
+│   │   │           │   └── page.tsx   # Canvas page (placeholder)
+│   │   │           └── style-guide/
+│   │   │               ├── layout.tsx # Passthrough layout
+│   │   │               ├── page.tsx   # Server: fetches guide + images, renders StyleGuideContent
+│   │   │               └── queries.ts # styleGuideQuery + MoodBoardImagesQuery
 │   │   │
 │   │   ├── globals.css                # Global styles
 │   │   ├── layout.tsx                 # Root layout (providers + preloaded state)
@@ -717,18 +1005,35 @@ doodlea/
 │   │   │       └── index.tsx          # New Project creation button
 │   │   ├── navbar/
 │   │   │   └── index.tsx              # Main navbar with tabs, avatar, project name
+│   │   ├── projects/
+│   │   │   ├── index.tsx              # ProjectsList grid component
+│   │   │   └── list/
+│   │   │       └── provider.tsx       # ProjectsProvider — hydrates Redux from server projects
 │   │   ├── providers/
 │   │   │   └── auth-provider.tsx      # NextAuth SessionProvider wrapper
+│   │   ├── style/
+│   │   │   ├── mood-board/
+│   │   │   │   ├── index.tsx          # Drop zone, drag glow, scattered layout, Add More button
+│   │   │   │   └── images-board.tsx   # Individual image card (hover X button, upload state)
+│   │   │   ├── swatch/
+│   │   │   │   └── index.tsx          # ColorSwatch component
+│   │   │   ├── theme/
+│   │   │   │   └── index.tsx          # ColorTheme + ThemeContent
+│   │   │   ├── typography/
+│   │   │   │   └── index.tsx          # StyleGuideTypography component
+│   │   │   └── style-guide-content.tsx  # Client tabs + CSS hidden panels
 │   │   └── ui/                        # Reusable UI components (shadcn/ui)
 │   │
 │   ├── hooks/
 │   │   ├── use-mobile.ts             # Mobile detection hook
-│   │   └── use-project.ts            # Project creation hook (Redux + API)
+│   │   ├── use-project.ts            # Project creation hook (Redux + API)
+│   │   └── use-styles.ts             # useMoodBoard hook (drag-drop, upload, seededRef)
 │   │
 │   ├── lib/
 │   │   ├── auth.ts                    # Auth utilities
 │   │   ├── prisma.ts                  # Prisma client singleton
 │   │   ├── profile.ts                 # Server-side getPreloadedProfile()
+│   │   ├── uploadthing.ts             # UTApi singleton for server-side Uploadthing calls
 │   │   ├── username.ts                # Slug generation utilities
 │   │   └── utils.ts                   # General utilities
 │   │
@@ -865,6 +1170,18 @@ npx prisma db push --force-reset --url="DATABASE_URL"
 - Verify GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET
 - Ensure Google+ API is enabled
 
+**5. Moodboard upload returns 500**
+- Verify `UPLOADTHING_TOKEN` is set in `.env`
+- Ensure the token is the full token string (not just App ID)
+- Check `src/lib/uploadthing.ts` — `UTApi()` reads `UPLOADTHING_TOKEN` automatically
+
+**6. Moodboard images not showing after page reload**
+- `queries.ts` resolves keys via `utapi.getFileUrls()` — ensure `UPLOADTHING_TOKEN` is set server-side
+- If keys exist in DB but `getFileUrls` returns no data, the files may have been deleted from the Uploadthing dashboard
+
+**7. Deleted images reappearing (ghost images)**
+- This is caused by `seededRef` guard not working. Check that `useRef(false)` is declared outside any conditional logic in `useMoodBoard`
+
 ---
 
 ## Security Considerations
@@ -982,7 +1299,7 @@ git commit -m "feat(auth): add 2FA support
 
 **For questions or issues, contact the development team.**
 
-_Last updated: February 24, 2026_
+_Last updated: March 7, 2026_
 
 ---
 
