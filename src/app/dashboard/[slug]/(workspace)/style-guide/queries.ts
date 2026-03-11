@@ -1,7 +1,8 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
-import { utapi } from '@/lib/uploadthing'
+
+type StoredImage = { storageId: string; url: string }
 
 export const MoodBoardImagesQuery = async (projectId: string) => {
     const session = await getServerSession(authOptions)
@@ -16,34 +17,19 @@ export const MoodBoardImagesQuery = async (projectId: string) => {
 
     if (!project || project.userId !== userId) return []
 
-    const storageIds = project.moodBoardImages ?? []
+    const raw = project.moodBoardImages
+    const stored: StoredImage[] = Array.isArray(raw) ? (raw as StoredImage[]) : []
 
-    const images = await Promise.all(
-        storageIds.map(async (storageId, index) => {
-            try {
-                // Resolve the Uploadthing file key → CDN URL
-                const urlResult = await utapi.getFileUrls(storageId)
-                const url = urlResult.data[0]?.url
-                if (!url) return null
-
-                return {
-                    id: `ut-${storageId}`,
-                    storageId,
-                    url,
-                    uploaded: true,
-                    uploading: false,
-                    index,
-                }
-            } catch (error) {
-                console.error(`Failed to resolve URL for key ${storageId}:`, error)
-                return null
-            }
-        })
-    )
-
-    return images
-        .filter((image) => image !== null)
-        .sort((a, b) => a!.index - b!.index)
+    return stored.map((item, index) => ({
+        id: `ut-${item.storageId}`,
+        storageId: item.storageId,
+        url: item.url,
+        preview: item.url,
+        uploaded: true,
+        uploading: false,
+        isFromServer: true,
+        index,
+    }))
 }
 
 export const styleGuideQuery = async (projectId: string) => {

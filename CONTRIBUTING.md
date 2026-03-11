@@ -284,6 +284,8 @@ chore(deps): upgrade Next.js to 15.5.0
 - `moodboard` - Moodboard feature (upload, drag-drop, storage)
 - `style-guide` - Style guide tabs (colours, typography)
 - `storage` - Uploadthing or cloud storage changes
+- `canvas` - Infinite canvas, drawing tools, shape rendering
+- `toolbar` - Canvas toolbar, tool selection, zoom bar
 
 ---
 
@@ -298,6 +300,7 @@ chore(deps): upgrade Next.js to 15.5.0
 - ✅ Changelog updated
 - ✅ No console errors or warnings
 - ✅ `UPLOADTHING_TOKEN` present in `.env` if touching moodboard/storage code
+- ✅ Canvas interactions tested: pan, zoom, all 9 drawing tools, shape selection and move
 
 ### PR Template
 
@@ -364,6 +367,14 @@ const removeImage = async (imageId: string) => {
   )
 }
 ```
+
+### Canvas Pointer Event Handlers
+
+All canvas pointer events (`onPointerDown`, `onPointerMove`, `onPointerUp`) live in `useInfiniteCanvas` (`src/hooks/use-canvas.ts`). Key rules:
+
+- **Never read Redux selector values inside pointer handlers for time-sensitive checks** — React batches state updates, so the selector value is stale by the time the next pointer event fires. Use `useRef` to track mutable interaction state (e.g. `isPanningRef`, `isMovingRef`).
+- Pan state is tracked via `isPanningRef: useRef<boolean>` — set on pointer-down, cleared on pointer-up. Redux `panStart/panEnd` are dispatched for cursor/mode visual feedback only.
+- New drawing tools must be added to: (1) the `Tool` union in `src/redux/slice/shapes/index.ts`, (2) the `onPointerDown` switch in `use-canvas.ts`, (3) `ToolbarShapes` in `src/components/canvas/toolbar/shapes/index.tsx`, and (4) a new renderer in `src/components/canvas/shapes/`.
 
 ### CSS-Based Tab Persistence
 

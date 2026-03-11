@@ -32,11 +32,71 @@ Open [http://localhost:3000](http://localhost:3000) to see the application.
 - 🧪 **Test Mode** - Easy subscription activation for development
 - 📦 **Redux State Management** - RTK with server-side preloaded state
 - 🎨 **Project Creation** - Auto-numbered projects with gradient thumbnails
-- 🖼️ **Canvas System** - Shapes, viewport, and drawing tool state
+- 🖼️ **Infinite Canvas** - Full drawing canvas with 9 tools, pan, zoom, and shape management
 - 🌐 **Navbar** - Glassmorphism navbar with project context, tabs, and avatar
 - 🗂️ **Style Guide** - Per-project style guide with colours, typography, and moodboard tabs
 - 📸 **Moodboard** - Drag-and-drop image board with Uploadthing cloud storage (up to 5 images)
 - ⚡ **Optimistic UI** - Instant image removal with background server sync
+
+## 📚 Documentation
+
+Complete documentation for developers:
+
+| Document | Description |
+|----------|-------------|
+| **[DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)** | Complete development guide with architecture, schemas, and workflows |
+| **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** | Quick commands, snippets, and common tasks |
+| **[CHANGELOG.md](./CHANGELOG.md)** | Version history and changes |
+| **[CONTRIBUTING.md](./CONTRIBUTING.md)** | Contribution guidelines and coding standards |
+
+**📖 For new developers:** Start with [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)  
+**⚡ For quick lookups:** Use [QUICK_REFERENCE.md](./QUICK_REFERENCE.md)  
+**🔄 When updating:** Update [CHANGELOG.md](./CHANGELOG.md) and relevant guides
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 15.4.6 with App Router
+- **Auth**: NextAuth.js 4.24.13
+- **Database**: PostgreSQL with Prisma ORM 7.4.0
+- **State Management**: Redux Toolkit 2.8.2
+- **Cloud Storage**: Uploadthing 7.7.4 (moodboard images)
+- **Styling**: Tailwind CSS 4.x
+- **UI Components**: shadcn/ui (Radix UI)
+- **Language**: TypeScript
+
+## 📋 Environment Variables
+
+Required environment variables:
+
+```env
+DATABASE_URL="postgresql://..."
+NEXTAUTH_SECRET="generate-with-openssl-rand-base64-32"
+NEXTAUTH_URL="http://localhost:3000"
+GOOGLE_CLIENT_ID="optional-for-oauth"
+GOOGLE_CLIENT_SECRET="optional-for-oauth"
+UPLOADTHING_TOKEN="your-uploadthing-token"    # Required for moodboard image uploads
+```
+
+> Get `UPLOADTHING_TOKEN` from [uploadthing.com/dashboard](https://uploadthing.com/dashboard) → API Keys.
+
+## 🖼️ Canvas Tools
+
+The infinite canvas supports 9 tools accessible via the bottom toolbar:
+
+| Tool | Shortcut | Behaviour |
+|------|----------|-----------|
+| Select | — | Click to select shapes; drag empty area to pan |
+| Frame | — | Draw labelled frame containers |
+| Rectangle | — | Draw filled/stroked rectangles |
+| Ellipse | — | Draw ellipses |
+| Free Draw | — | Freehand pen drawing |
+| Arrow | — | Draw arrows between points |
+| Line | — | Draw straight lines |
+| Text | — | Click to place a text block |
+| Eraser | — | Click/drag to delete shapes |
+
+**Pan:** Drag on empty canvas with Select tool, or middle-mouse drag anywhere.  
+**Zoom:** Trackpad pinch or scroll wheel (Ctrl/Cmd + scroll).
 
 ## 📚 Documentation
 

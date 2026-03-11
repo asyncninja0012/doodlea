@@ -262,7 +262,7 @@ const makeText = (p: {
   y: p.y,
   text: p.text ?? "Type here...", // Start with placeholder text
   fontSize: p.fontSize ?? 16,
-  fontFamily: p.fontFamily ?? "Inter, sans-serif",
+  fontFamily: p.fontFamily ?? "Excalifont",
   fontWeight: p.fontWeight ?? 400,
   fontStyle: p.fontStyle ?? "normal",
   textAlign: p.textAlign ?? "left",

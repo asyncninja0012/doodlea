@@ -50,7 +50,7 @@ const user = useAppSelector((state) => state.profile)
       ): (
         <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6'>
             {projects.map((project:any) => (
-                <Link key={project.id} href={`/dashboard/${user.slug}/canvas?project=${project._id}`} className='group cursor-pointer'>
+                <Link key={project._id} href={`/dashboard/${user.slug}/canvas?project=${project._id}`} className='group cursor-pointer'>
                     <div className='space-y-3'>
                         <div className='aspect-[4/3] rounded-lg overflow-hidden bg-muted'>
                             {project.thumbnail ? (

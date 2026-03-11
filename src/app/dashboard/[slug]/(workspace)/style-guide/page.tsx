@@ -13,12 +13,14 @@ const page = async ({searchParams}: Props) => {
 
     const guide = existingStyleGuide as unknown as StyleGuide
 
-    const colorGuide = guide?.colorSections || []
-    const typographyGuide = guide?.typographySections || []
+    const colorGuide = Array.isArray(guide?.colorSections) ? guide.colorSections : []
+    const typographyGuide = Array.isArray(guide?.typographySections) ? guide.typographySections : []
 
     const existingMoodBoardImages = await MoodBoardImagesQuery(projectId) 
 
-    const guideImages = existingMoodBoardImages as unknown as MoodBoardImage[]
+    const guideImages: MoodBoardImage[] = Array.isArray(existingMoodBoardImages)
+        ? (existingMoodBoardImages as unknown as MoodBoardImage[])
+        : []
 
     return (
         <StyleGuideContent

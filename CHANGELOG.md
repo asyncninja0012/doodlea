@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-03-11
+
+### Added
+- **Infinite Canvas** (`src/components/canvas/`)
+  - `InfiniteCanvas` client component — full pointer-event driven canvas with pan, zoom, and multi-tool drawing
+  - `attachCanvasRef` pattern — passive `wheel` listener attached via ref callback to avoid React synthetic event limitations
+  - Shape renderer (`src/components/canvas/shapes/`) — renders all shape types: `frame`, `rect`, `ellipse`, `arrow`, `line`, `text`, `freedraw`, `generatedui`
+  - Selection overlay with resize handles (`selection.tsx`) dispatching custom `shape-resize-*` events
+  - Draft shape preview rendered during draw gestures (before pointer-up commit)
+  - Stroke sub-component for consistent shape border rendering
+
+- **Canvas Toolbar** (`src/components/canvas/toolbar/`)
+  - `ToolbarShapes` — pill-shaped glassmorphism toolbar with all 9 tools: Select, Frame, Rectangle, Ellipse, Free Draw, Arrow, **Line**, Text, Eraser
+  - `ZoomBar` — displays live zoom percentage; dispatches `wheelZoom` / `zoomBy`
+  - `HistoryPill` — undo/redo controls
+
+- **Text Sidebar** (`src/components/canvas/text-sidebar/`)
+  - Slides in when a text shape is selected
+  - Controls: font family, font size (slider + input), bold/italic/underline/strikethrough toggles, colour picker
+
+- **`useInfiniteCanvas` Hook** (`src/hooks/use-canvas.ts`)
+  - Unified pointer event handlers: `onPointerDown`, `onPointerMove`, `onPointerUp`, `onPointerCancel`
+  - **Pan fix** — panning state tracked via `isPanningRef` (ref, not Redux selector) to avoid stale-closure bug in pointer event handlers
+  - **Select-tool pan** — dragging on empty canvas with Select tool pans (no key held needed); middle-mouse drag also pans
+  - Multi-shape move with `initialShapePositionsRef` snapshot on pointer-down
+  - Freehand drawing with RAF throttle (`RAF_INTERVAL_MS = 8ms`)
+  - Resize via custom DOM events (`shape-resize-start/move/end`) dispatched by shape handles
+  - `isSidebarOpen` / `hasSelectedText` derived state for text sidebar visibility
+
+- **`LiquidGlassButton`** (`src/components/buttons/liquid-glass/`)
+  - Reusable glassmorphism button with `size` (`sm`/`md`/`lg`) and `variant` (`default`/`subtle`) props
+  - Used in the Frame overlay for "Inspiration" and "Generate Design" actions
+
+- **Canvas page & queries** (`src/app/dashboard/[slug]/(workspace)/canvas/`)
+  - `page.tsx` — async server component; loads project via `ProjectQuery`, guards auth and project-not-found states, renders `<InfiniteCanvas>` wrapped in `<ProjectsProvider>`
+  - `queries.ts` — `ProjectQuery(projectId)` fetches project + profile from DB
+
+- **Redux shapes slice** (`src/redux/slice/shapes/index.ts`)
+  - Entity adapter for all shape types
+  - Actions: `addFrame`, `addRect`, `addEllipse`, `addArrow`, `addLine`, `addText`, `addFreeDrawShape`, `updateShape`, `removeShape`, `selectShape`, `clearSelection`, `setTool`
+  - Tool type: `"select" | "frame" | "rect" | "ellipse" | "freedraw" | "arrow" | "line" | "text" | "eraser"`
+
+- **`ProjectsProvider`** (`src/components/projects/provider/`)
+  - Client component that hydrates Redux store with server-fetched project on mount
+
+### Fixed
+- **Canvas zoom not applying** — CSS transform string had stray `'` (`0'`) making `translate3d` invalid; corrected to `0`
+- **Pan never firing** — `onPointerMove` checked `viewport.mode` from a stale React closure; replaced with `isPanningRef` which is always current
+- **Pan mode string mismatch** — code checked for non-existent `'isPanning'` mode; corrected to `'panning'`
+- **`schedulePanMove` throttle inverted** — condition was `!= null` (always skipped RAF); corrected to `=== null`
+- **Cursor not changing** — `cursor-crosshair` and `cursor-default` had identical conditions; fixed so crosshair applies for all non-select tools and eraser uses `cursor: cell`
+- **`"use client"` missing** — added to `canvas/index.tsx` and `text-sidebar/index.tsx` (both use hooks)
+
+### Changed
+- **Select tool behaviour** — dragging on empty canvas now pans; Space key no longer required
+- **Cursor** — crosshair for all drawing tools, `cell` cursor for eraser, grab/grabbing for pan modes
+
+---
+
 ## [1.2.0] - 2026-03-07
 
 ### Added

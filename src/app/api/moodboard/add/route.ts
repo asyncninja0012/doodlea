@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
 
+type StoredImage = { storageId: string; url: string }
+
 export async function POST(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions)
@@ -12,7 +14,7 @@ export async function POST(req: NextRequest) {
             throw new Error('Not authenticated')
         }
 
-        const { projectId, storageId } = await req.json()
+        const { projectId, storageId, url } = await req.json()
 
         // Get the project and verify ownership
         const project = await prisma.project.findUnique({
@@ -28,13 +30,14 @@ export async function POST(req: NextRequest) {
             throw new Error('Access denied')
         }
 
-        const currentImages = project.moodBoardImages ?? []
+        const raw = project.moodBoardImages
+        const currentImages: StoredImage[] = Array.isArray(raw) ? (raw as StoredImage[]) : []
 
         if (currentImages.length >= 5) {
             throw new Error('Maximum 5 mood board images allowed')
         }
 
-        const updatedImages = [...currentImages, storageId]
+        const updatedImages: StoredImage[] = [...currentImages, { storageId, url }]
 
         await prisma.project.update({
             where: { id: projectId },

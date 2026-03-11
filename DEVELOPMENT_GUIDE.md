@@ -1,7 +1,7 @@
 # Doodlea - Development Guide
 
-> **Last Updated:** March 7, 2026  
-> **Version:** 1.2.0
+> **Last Updated:** March 11, 2026  
+> **Version:** 1.3.0
 
 ## Table of Contents
 - [Overview](#overview)
@@ -39,7 +39,7 @@ Doodlea is a Next.js application with a subscription-based business model. Users
 - 🧪 **Test Mode**: Development subscription activation for testing
 - 📦 **Redux State Management**: RTK with server-side preloaded state
 - 🎨 **Project Creation**: Auto-numbered projects with gradient thumbnails
-- 🖼️ **Canvas System**: Shapes, viewport, and drawing tool state management
+- 🖼️ **Infinite Canvas**: Full drawing canvas with 9 tools, pan, zoom, shape management, and text formatting
 - 🗂️ **Style Guide**: Per-project style guide with colours, typography, and moodboard tabs
 - 📸 **Moodboard**: Drag-and-drop image board backed by Uploadthing cloud storage
 
@@ -1001,14 +1001,39 @@ doodlea/
 │   │
 │   ├── components/
 │   │   ├── buttons/
-│   │   │   └── project/
-│   │   │       └── index.tsx          # New Project creation button
+│   │   │   ├── project/
+│   │   │   │   └── index.tsx          # New Project creation button
+│   │   │   └── liquid-glass/
+│   │   │       └── index.tsx          # LiquidGlassButton — glassmorphism button (size + variant props)
+│   │   ├── canvas/
+│   │   │   ├── index.tsx              # InfiniteCanvas — pointer events, pan/zoom, shape rendering
+│   │   │   ├── shapes/
+│   │   │   │   ├── index.tsx          # ShapeRenderer — dispatches to per-type shape components
+│   │   │   │   ├── selection.tsx      # Selection overlay with resize handles
+│   │   │   │   ├── frame/             # FrameShape with LiquidGlass overlay buttons
+│   │   │   │   ├── rectangle/         # RectShape renderer
+│   │   │   │   ├── elipse/            # EllipseShape renderer
+│   │   │   │   ├── arrow/             # ArrowShape renderer
+│   │   │   │   ├── line/              # LineShape renderer
+│   │   │   │   ├── text/              # TextShape renderer (contenteditable)
+│   │   │   │   └── stroke/            # Shared stroke styling sub-component
+│   │   │   ├── text-sidebar/
+│   │   │   │   └── index.tsx          # Text formatting sidebar (font, size, bold/italic/etc, colour)
+│   │   │   └── toolbar/
+│   │   │       ├── index.tsx          # Toolbar layout (HistoryPill + ToolbarShapes + ZoomBar)
+│   │   │       ├── shapes/
+│   │   │       │   └── index.tsx      # 9-tool pill toolbar with active highlight
+│   │   │       ├── zoom/
+│   │   │       │   └── index.tsx      # Zoom percentage display + controls
+│   │   │       └── history/
+│   │   │           └── index.tsx      # Undo/redo pill
 │   │   ├── navbar/
 │   │   │   └── index.tsx              # Main navbar with tabs, avatar, project name
 │   │   ├── projects/
 │   │   │   ├── index.tsx              # ProjectsList grid component
-│   │   │   └── list/
-│   │   │       └── provider.tsx       # ProjectsProvider — hydrates Redux from server projects
+│   │   │   ├── list/
+│   │   │   └── provider/
+│   │   │       └── index.tsx          # ProjectsProvider — hydrates Redux on mount from server projects
 │   │   ├── providers/
 │   │   │   └── auth-provider.tsx      # NextAuth SessionProvider wrapper
 │   │   ├── style/
@@ -1025,6 +1050,7 @@ doodlea/
 │   │   └── ui/                        # Reusable UI components (shadcn/ui)
 │   │
 │   ├── hooks/
+│   │   ├── use-canvas.ts             # useInfiniteCanvas — pointer events, pan, zoom, draw, resize
 │   │   ├── use-mobile.ts             # Mobile detection hook
 │   │   ├── use-project.ts            # Project creation hook (Redux + API)
 │   │   └── use-styles.ts             # useMoodBoard hook (drag-drop, upload, seededRef)
@@ -1299,7 +1325,7 @@ git commit -m "feat(auth): add 2FA support
 
 **For questions or issues, contact the development team.**
 
-_Last updated: March 7, 2026_
+_Last updated: March 11, 2026_
 
 ---
 

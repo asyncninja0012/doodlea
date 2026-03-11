@@ -80,7 +80,7 @@ model Project {
   viewportData         Json?    // JSON structure for viewport state (scale, pan, etc.)
   generatedDesignData  Json?    // JSON structure for generated UI components
   thumbnail            String?  // Base64 or URL for project thumbnail
-  moodBoardImages      String[] // Array of storage IDs for mood board images
+  moodBoardImages      Json     @default("[]") // Array of {storageId, url} objects
   inspirationImages    String[] // Array of storage IDs for inspiration images (max 6)
   lastModified         DateTime @default(now())
   createdAt            DateTime @default(now())

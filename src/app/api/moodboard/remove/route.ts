@@ -4,6 +4,8 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
 import { utapi } from '@/lib/uploadthing'
 
+type StoredImage = { storageId: string; url: string }
+
 export async function POST(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions)
@@ -28,8 +30,9 @@ export async function POST(req: NextRequest) {
             throw new Error('Access denied')
         }
 
-        const currentImages = project.moodBoardImages ?? []
-        const updatedImages = currentImages.filter((id) => id !== storageId)
+        const raw = project.moodBoardImages
+        const currentImages: StoredImage[] = Array.isArray(raw) ? (raw as StoredImage[]) : []
+        const updatedImages = currentImages.filter((img) => img.storageId !== storageId)
 
         await prisma.project.update({
             where: { id: projectId },

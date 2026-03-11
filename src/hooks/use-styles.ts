@@ -1,15 +1,19 @@
 "use client"
 
-import { apiBaseUrl } from "next-auth/client/_utils"
-import React, { useEffect, useRef, useState } from "react"
-import { useForm } from "react-hook-form"
+import React, { useEffect, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
-import { add } from "date-fns"
+import { useDispatch } from "react-redux"
+import { AppDispatch, useAppSelector } from "@/redux/store"
+import {
+    seedMoodBoard,
+    addMoodBoardImageLocal,
+    updateMoodBoardImage,
+    removeMoodBoardImageLocal,
+} from "@/redux/slice/moodboard"
 
 export interface MoodBoardImage {
     id: string
-    file?: File
     preview: string
     storageId?: string
     uploaded: boolean
@@ -19,24 +23,41 @@ export interface MoodBoardImage {
     isFromServer?: boolean
 }
 
-interface StylesFormData {
-    images: MoodBoardImage[]
-}
-
 export const useMoodBoard = (guideImages: MoodBoardImage[]) => {
-    const [dragActive, setDragActive] = useState(false)
-    const seededRef = useRef(false)
+    const dispatch = useDispatch<AppDispatch>()
+    const { projectId: reduxProjectId, images } = useAppSelector((s) => s.moodboard)
+    const [dragActive, setDragActive] = React.useState(false)
     const searchParams = useSearchParams()
-    const ProjectId = searchParams.get('project')
+    const projectId = searchParams.get('project') ?? ''
+    // Pending files are kept outside Redux (File is non-serializable)
+    const pendingFilesRef = useRef<Map<string, File>>(new Map())
 
-    const form = useForm<StylesFormData>({
-        defaultValues: {
-            images: [],
+    // Seed Redux from server data only when the project changes.
+    // If we're returning to the same project, keep Redux state intact so that
+    // images added/uploading since the last server fetch are not lost.
+    useEffect(() => {
+        if (reduxProjectId === projectId) {
+            // Same project already loaded — just clean up any stuck "uploading" states
+            // that can't be resumed (pendingFilesRef is empty on fresh mount).
+            images.forEach((img: MoodBoardImage) => {
+                if (
+                    (img.uploading || (!img.uploaded && !img.error && !img.isFromServer)) &&
+                    !pendingFilesRef.current.has(img.id)
+                ) {
+                    dispatch(updateMoodBoardImage({
+                        id: img.id,
+                        patch: { uploading: false, error: 'Upload interrupted — please remove and re-add' },
+                    }))
+                }
+            })
+            return
         }
-    })
+        // Different project (or first load) — seed from server data
+        dispatch(seedMoodBoard({ projectId, images: guideImages }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [projectId])
 
-    const { watch, setValue, getValues } = form
-    const images = watch('images')
+    // --- API helpers ---
 
     const generateUploadUrl = async (): Promise<string> => {
         const res = await fetch('/api/moodboard/generate-upload-url', { method: 'POST' })
@@ -45,248 +66,156 @@ export const useMoodBoard = (guideImages: MoodBoardImage[]) => {
         return uploadUrl
     }
 
-    const removeMoodBoardImage = async (projectId: string, storageId: string) => {
+    const saveMoodBoardImage = async (pId: string, storageId: string, url: string) => {
+        const res = await fetch('/api/moodboard/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId: pId, storageId, url }),
+        })
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            throw new Error(data.error ?? 'Failed to save mood board image')
+        }
+        return res.json() as Promise<{ success: boolean; imageCount: number }>
+    }
+
+    const deleteMoodBoardImage = async (pId: string, storageId: string) => {
         const res = await fetch('/api/moodboard/remove', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ projectId, storageId }),
+            body: JSON.stringify({ projectId: pId, storageId }),
         })
         if (!res.ok) throw new Error('Failed to remove mood board image')
         return res.json() as Promise<{ success: boolean; imageCount: number }>
     }
 
-    const addMoodBoardImage = async (projectId: string, storageId: string) => {
-        const res = await fetch('/api/moodboard/add', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ projectId, storageId }),
-        })
-        if (!res.ok) throw new Error('Failed to add mood board image')
-        return res.json() as Promise<{ success: boolean; imageCount: number }>
-    }
+    // --- Image actions ---
 
-    const uploadImage = async(file:File):Promise<{storageId: string; url?: string}> => {
-        try{
-            const uploadUrl = await generateUploadUrl()
-
-            const formData = new FormData()
-            formData.append('file', file)
-
-            const result = await fetch(uploadUrl, {
-                method: 'POST',
-                body: formData,
-            })
-
-            if(!result.ok) {
-                throw new Error(`Upload failed: ${result.statusText}`)
-            }
-
-            const {storageId, url} = await result.json()
-            
-            if(ProjectId){
-                await addMoodBoardImage(ProjectId, storageId)
-            }
-
-            return {storageId, url}
-            }catch(error) {
-                console.error(error)
-                throw error
-            }
-
-    }
-
-    // Seed form state from server images only once on first mount.
-    // After that the client state is the source of truth.
-    useEffect(() => {
-        if(seededRef.current) return
-        if(guideImages && guideImages.length > 0) {
-            const serverImages: MoodBoardImage[] = guideImages.map((img:any) => ({
-                id: img.id,
-                preview: img.url,
-                storageId: img.storageId,
-                uploaded: true,
-                uploading: false,
-                url: img.url,
-                isFromServer: true,
-            }))
-
-            setValue('images', serverImages)
-        }
-        seededRef.current = true
-    }, [guideImages, setValue])
-
-    const addImage =  (file:File) => {
-        if(images.length>=5){
+    const addImage = (file: File) => {
+        if (images.length >= 5) {
             toast.error('Maximum of 5 images allowed')
             return
         }
+        const id = `${Date.now()}-${Math.random()}`
+        pendingFilesRef.current.set(id, file)
         const newImage: MoodBoardImage = {
-            id: `${Date.now()}-${Math.random()}`,
-            file,
+            id,
             preview: URL.createObjectURL(file),
             uploaded: false,
             uploading: false,
             isFromServer: false,
         }
-
-        const updatedImages = [...images, newImage]
-
-        setValue('images', updatedImages)
-        
+        dispatch(addMoodBoardImageLocal(newImage))
         toast.success('Image added to mood board')
-
-
     }
 
     const removeImage = async (imageId: string) => {
-        const imageToRemove = images.find((img) => img.id === imageId)
-        if(!imageToRemove) return
+        const imageToRemove = images.find((img: MoodBoardImage) => img.id === imageId)
+        if (!imageToRemove) return
 
-        // Optimistic: remove from UI instantly
-        const updatedImages = images.filter((img) => {
-            if(img.id === imageId) {
-                if(!img.isFromServer && img.preview.startsWith('blob:')) {
-                    URL.revokeObjectURL(img.preview)
-                }
-                return false
-            }
-            return true
-        })
-        setValue('images', updatedImages)
+        if (!imageToRemove.isFromServer && imageToRemove.preview.startsWith('blob:')) {
+            URL.revokeObjectURL(imageToRemove.preview)
+        }
+        pendingFilesRef.current.delete(imageId)
+
+        // Optimistic remove
+        dispatch(removeMoodBoardImageLocal(imageId))
         toast.success('Image removed from mood board')
 
-        // Fire server deletion in background (don't block UI)
-        if(imageToRemove.isFromServer && imageToRemove.storageId && ProjectId) {
-            removeMoodBoardImage(ProjectId, imageToRemove.storageId).catch((error) => {
-                console.error(error)
+        if (imageToRemove.isFromServer && imageToRemove.storageId && projectId) {
+            deleteMoodBoardImage(projectId, imageToRemove.storageId).catch((err) => {
+                console.error(err)
                 toast.error('Failed to remove image from server')
             })
         }
     }
 
+    // Auto-upload pending images one at a time to avoid DB race conditions.
+    // Each completed upload triggers an images state change which re-runs this
+    // effect, picking up the next pending image.
+    const uploadingRef = useRef<Set<string>>(new Set())
+    useEffect(() => {
+        // Pick the first image that isn't already being uploaded
+        const image = images.find(
+            (img: MoodBoardImage) =>
+                !img.uploaded && !img.uploading && !img.error && pendingFilesRef.current.has(img.id)
+        )
+        if (!image) return
+        if (uploadingRef.current.has(image.id)) return
+
+        uploadingRef.current.add(image.id)
+        dispatch(updateMoodBoardImage({ id: image.id, patch: { uploading: true } }))
+
+        const file = pendingFilesRef.current.get(image.id)!
+        ;(async () => {
+            try {
+                const uploadUrl = await generateUploadUrl()
+                const formData = new FormData()
+                formData.append('file', file)
+                const result = await fetch(uploadUrl, { method: 'POST', body: formData })
+                if (!result.ok) throw new Error(`Upload failed: ${result.statusText}`)
+
+                const { storageId, url } = await result.json()
+
+                if (projectId) {
+                    await saveMoodBoardImage(projectId, storageId, url)
+                }
+
+                pendingFilesRef.current.delete(image.id)
+                dispatch(updateMoodBoardImage({
+                    id: image.id,
+                    patch: { storageId, url, preview: url, uploaded: true, uploading: false, isFromServer: true },
+                }))
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'Upload failed'
+                console.error(err)
+                toast.error(message)
+                dispatch(updateMoodBoardImage({ id: image.id, patch: { uploading: false, error: message } }))
+            } finally {
+                uploadingRef.current.delete(image.id)
+            }
+        })()
+    // images intentionally included to react to new pending entries
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [images])
+
+    // --- Drag & drop ---
+
     const handleDrag = (e: React.DragEvent) => {
         e.preventDefault()
         e.stopPropagation()
-
-        if(e.type === 'dragenter' || e.type === 'dragover') {
-            setDragActive(true)
-        }else if(e.type === 'dragleave') {
-            setDragActive(false)
-        }
+        if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true)
+        else if (e.type === 'dragleave') setDragActive(false)
     }
 
-    const handleDrop = (e:React.DragEvent) => {
+    const handleDrop = (e: React.DragEvent) => {
         e.preventDefault()
         e.stopPropagation()
         setDragActive(false)
 
-        const files = Array.from(e.dataTransfer.files)
-        const imageFiles = files.filter((file) => file.type.startsWith('image/'))
-
-        if(imageFiles.length === 0) {
+        const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+        if (files.length === 0) {
             toast.error('Please upload valid image files')
             return
         }
 
-        // Build all new images at once so we don't read stale `images` in a loop
-        const currentImages = getValues('images')
-        const remaining = 5 - currentImages.length
-        const filesToAdd = imageFiles.slice(0, remaining)
-
-        if(filesToAdd.length === 0) {
+        const remaining = 5 - images.length
+        const toAdd = files.slice(0, remaining)
+        if (toAdd.length === 0) {
             toast.error('Maximum of 5 images allowed')
             return
         }
 
-        const newImages: MoodBoardImage[] = filesToAdd.map((file) => ({
-            id: `${Date.now()}-${Math.random()}`,
-            file,
-            preview: URL.createObjectURL(file),
-            uploaded: false,
-            uploading: false,
-            isFromServer: false,
-        }))
-
-        setValue('images', [...currentImages, ...newImages])
-        toast.success(
-            newImages.length === 1
-                ? 'Image added to mood board'
-                : `${newImages.length} images added to mood board`
-        )
+        toAdd.forEach((file) => addImage(file))
+        if (toAdd.length > 1) toast.success(`${toAdd.length} images added to mood board`)
     }
 
     const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || [])
-        files.forEach((file) => addImage(file))
-
+        Array.from(e.target.files || []).forEach((file) => addImage(file))
         e.target.value = ''
     }
 
-    useEffect(() => {
-        const uploadPendingImages = async () => {
-            const currentImage = getValues('images')    
-            for(let i=0; i<currentImage.length; i++) {
-                const image = currentImage[i]
-                if(!image.uploaded && !image.uploading && !image.error) {
-                    const updatedImages = [...currentImage]
-                    updatedImages[i] = {...image, uploading: true}
-                    setValue('images', updatedImages)
-
-                    try{
-                        const {storageId, url} = await uploadImage(image.file!)
-                        const finalImages = getValues('images')
-
-                        const finalIndex = finalImages.findIndex((img) => img.id === image.id)
-
-                        if(finalIndex !== -1) {
-                            finalImages[finalIndex] = {
-                                ...finalImages[finalIndex],
-                                storageId,
-                                url,
-                                uploaded: true,
-                                uploading:false,
-                                isFromServer: true,
-                            }
-                            setValue('images', [...finalImages])
-                        }
-                        
-                        
-                    }catch(error) {
-                        console.error(error)
-                        const errorImages = getValues('images')
-                        const errorIndex = errorImages.findIndex((img) => img.id === image.id)
-
-                        if(errorIndex !== -1) {
-                            errorImages[errorIndex] = {
-                                ...errorImages[errorIndex],
-                                uploading: false,
-                                error: 'Upload failed',
-                            }
-                            setValue('images', [...errorImages])
-                        }
-                    }
-
-                }
-
-
-            }
-        }
-
-        if(images.length>0){
-            uploadPendingImages()
-        }
-    },[images, setValue, getValues])
-
-    useEffect(() => {
-        return () => {
-            images.forEach((image) => {
-                URL.revokeObjectURL(image.preview)
-            })
-        }
-    },[])
-
     return {
-        form,
         images,
         dragActive,
         addImage,
@@ -295,6 +224,5 @@ export const useMoodBoard = (guideImages: MoodBoardImage[]) => {
         handleDrop,
         handleFileInput,
         canAddMore: images.length < 5,
-
     }
 }

@@ -5,9 +5,10 @@ type Props = {
 }
 
 const StyleGuideTypography = ({ typographyGuide }: Props) => {
+    const sections = Array.isArray(typographyGuide) ? typographyGuide : []
     return (
         <>
-            {typographyGuide.length === 0 ? (
+            {sections.length === 0 ? (
                 <div className="text-center py-20">
                     <Type className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
                     <h3 className="text-lg font-medium text-foreground mb-2">
@@ -19,7 +20,7 @@ const StyleGuideTypography = ({ typographyGuide }: Props) => {
                 </div>
             ) : (
                 <div className="flex flex-col gap-10">
-                    {typographyGuide.map((section: any, index: number) => (
+                    {sections.map((section: any, index: number) => (
                         <div
                             key={index}
                             className="flex flex-col gap-5"

@@ -18,8 +18,8 @@ const tabs = [
 
 type Props = {
     guideImages: MoodBoardImage[]
-    colorGuide: StyleGuide['colorSections']
-    typographyGuide: StyleGuide['typographySections']
+    colorGuide: any[]
+    typographyGuide: any[]
 }
 
 export default function StyleGuideContent({ guideImages, colorGuide, typographyGuide }: Props) {
