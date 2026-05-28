@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '../../auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
+  // ⚠️  DEV ONLY — this endpoint is disabled in production
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   try {
     const session = await getServerSession(authOptions)
 
@@ -37,9 +42,10 @@ export async function POST(req: NextRequest) {
         polarCustomerId: `test_customer_${Date.now()}`,
         polarSubscriptionId: `test_sub_${Date.now()}`,
         currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-        creditsBalance: 10000,
-        creditsGrantPerPeriod: 10000,
-        creditsRolloverLimit: 20000,
+        creditsBalance: 100,
+        creditsGrantPerPeriod: 100,
+        creditsRolloverLimit: 200,
+        planCode: 'standard',
       }
     })
 

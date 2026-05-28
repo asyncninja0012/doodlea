@@ -1,2 +1,3 @@
-import {projectApi} from './project'
-export const apis = [projectApi]
+import { projectApi } from './project'
+import { styleGuideApi } from './style-guide'
+export const apis = [projectApi, styleGuideApi]

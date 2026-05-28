@@ -124,8 +124,9 @@ export default function LoginPage() {
     return (
         <section className="flex min-h-screen bg-zinc-50 px-4 py-16 md:py-32 dark:bg-transparent">
             <form
-                onSubmit={handleSubmit}
-                className="bg-muted m-auto h-fit w-full max-w-sm overflow-hidden rounded-[calc(var(--radius)+.125rem)] border shadow-md shadow-zinc-950/5 dark:[--color-muted:var(--color-zinc-900)]">
+            onSubmit={handleSubmit}
+            autoComplete="off"
+            className="bg-muted m-auto h-fit w-full max-w-sm overflow-hidden rounded-[calc(var(--radius)+.125rem)] border shadow-md shadow-zinc-950/5 dark:[--color-muted:var(--color-zinc-900)]">
                 <div className="bg-card -m-px rounded-[calc(var(--radius)+.125rem)] border p-8 pb-6">
                     <div className="text-center">
                         <Link
@@ -157,6 +158,7 @@ export default function LoginPage() {
                                     required
                                     name="firstname"
                                     id="firstname"
+                                    autoComplete="given-name"
                                     value={firstname}
                                     onChange={(e) => setFirstname(e.target.value)}
                                     disabled={isLoading}
@@ -173,6 +175,7 @@ export default function LoginPage() {
                                     required
                                     name="lastname"
                                     id="lastname"
+                                    autoComplete="family-name"
                                     value={lastname}
                                     onChange={(e) => setLastname(e.target.value)}
                                     disabled={isLoading}
@@ -191,6 +194,7 @@ export default function LoginPage() {
                                 required
                                 name="username"
                                 id="username"
+                                autoComplete="username"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 disabled={isLoading}
@@ -208,6 +212,7 @@ export default function LoginPage() {
                                 required
                                 name="email"
                                 id="email"
+                                autoComplete="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 disabled={isLoading}
@@ -237,6 +242,7 @@ export default function LoginPage() {
                                 required
                                 name="pwd"
                                 id="pwd"
+                                autoComplete="new-password"
                                 className="input sz-md variant-mixed"
                                 value={password}
                                 onChange={handlePasswordChange}

@@ -6,6 +6,7 @@ import { Stroke } from "./stroke";
 import { Arrow } from "./arrow";
 import { Line } from "./line";
 import { Text } from "./text";
+import { GeneratedUI } from "./generatedui";
 
 
 const ShapeRenderer = ({
@@ -16,27 +17,29 @@ const ShapeRenderer = ({
     exportDesign,
 }: {
     shape: Shape;
-    toggleChat: (generatedUIId: string) => void;
-    toggleInspiration: () => void;
-    generateWorkflow: (generatedUIId: string) => void;
-    exportDesign: (generatedUIId: string, element: HTMLElement) => void;
+    toggleChat?: (generatedUIId: string) => void;
+    toggleInspiration?: () => void;
+    generateWorkflow?: (generatedUIId: string) => void;
+    exportDesign?: (generatedUIId: string, element: HTMLElement) => void;
 }) => {
-    switch(shape.type){
-        // case 'frame' :
-        //     return (
-        //         <Frame shape={shape} toggleInspiration={toggleInspiration} />
-        //     )
-        case 'rect' :
-            return <Rectangle shape = {shape} />
-        case 'ellipse' :
-            return <Elipse shape = {shape} />
-        case 'freedraw' :
-            return <Stroke shape = {shape} />
-        case 'arrow' :
-            return <Arrow shape = {shape} />
-        case 'line' :
-            return <Line shape = {shape} />
-        case 'text' :
+    switch (shape.type) {
+        case 'frame':
+            return (
+                <Frame shape={shape} toggleInspiration={toggleInspiration} />
+            )
+        case 'rect':
+            return <Rectangle shape={shape} />
+        case 'ellipse':
+            return <Elipse shape={shape} />
+        case 'freedraw':
+            return <Stroke shape={shape} />
+        case 'arrow':
+            return <Arrow shape={shape} />
+        case 'line':
+            return <Line shape={shape} />
+        case 'generatedui':
+            return <GeneratedUI shape={shape} toggleChat={toggleChat!} generateWorkflow={generateWorkflow!} exportDesign={exportDesign!} />
+        case 'text':
             return <Text shape={shape} />
     }
 }

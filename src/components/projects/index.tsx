@@ -5,10 +5,15 @@ import { useAppSelector } from '@/redux/store'
 import { Plus } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { format } from 'path'
 import React from 'react'
 import {formatDistanceToNow} from 'date-fns'
 
+type Project = {
+    _id: string
+    name: string
+    thumbnail?: string
+    lastModified: string | Date
+}
 
 
 const ProjectsList = () => {
@@ -49,7 +54,7 @@ const user = useAppSelector((state) => state.profile)
         </div>
       ): (
         <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6'>
-            {projects.map((project:any) => (
+            {projects.map((project: Project) => (
                 <Link key={project._id} href={`/dashboard/${user.slug}/canvas?project=${project._id}`} className='group cursor-pointer'>
                     <div className='space-y-3'>
                         <div className='aspect-[4/3] rounded-lg overflow-hidden bg-muted'>

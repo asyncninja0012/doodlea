@@ -36,7 +36,7 @@ const TextSidebar = ({isOpen}: Props) => {
     
     const selectedTextShape = Object.keys(selectedShapes).map((id)=> shapesEntities[id]).find((shape)=>shape?.type==='text') as TextShape | undefined
 
-    const updateTextProperty = (property: keyof TextShape, value: any) => {
+    const updateTextProperty = (property: keyof TextShape, value: TextShape[keyof TextShape]) => {
         if(!selectedTextShape) return
 
         dispatch(

@@ -1,7 +1,22 @@
-import { Type } from 'lucide-react'
+import { Type, Info } from 'lucide-react'
+
+type TypographyStyle = {
+    name: string
+    description?: string
+    fontFamily: string
+    fontSize: number | string
+    fontWeight: number | string
+    lineHeight: number | string
+    letterSpacing?: number | string
+}
+
+type TypographySection = {
+    title: string
+    styles?: TypographyStyle[]
+}
 
 type Props = {
-    typographyGuide: any
+    typographyGuide: TypographySection[]
 }
 
 const StyleGuideTypography = ({ typographyGuide }: Props) => {
@@ -20,7 +35,7 @@ const StyleGuideTypography = ({ typographyGuide }: Props) => {
                 </div>
             ) : (
                 <div className="flex flex-col gap-10">
-                    {sections.map((section: any, index: number) => (
+                    {sections.map((section, index) => (
                         <div
                             key={index}
                             className="flex flex-col gap-5"
@@ -30,34 +45,26 @@ const StyleGuideTypography = ({ typographyGuide }: Props) => {
                                     {section.title}
                                 </h3>
                             </div>
-                            <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-                                {section.styles?.map((style: any, styleIndex: number) => (
-                                    <div key={styleIndex}className='p-6 rounded-2xl backdrop-blur-xl bg-white/[0.02] border border-white/[0.08] saturate-150'>
-                                        <div className='space-y-4'>
-                                            <h4 className='text-lg font-medium text-foreground mb-1'>{style.name}</h4>
+                            <div className='flex flex-col gap-10 mt-2'>
+                                {section.styles?.map((style: TypographyStyle, styleIndex: number) => (
+                                    <div key={styleIndex} className='flex flex-col gap-1'>
+                                        <div className='flex flex-col gap-1'>
+                                            <h4 className='text-sm font-medium text-foreground'>{style.name}</h4>
                                             {style.description && (
-                                                <p className='text-xs text-muted-foreground font-mono'>
-                                                    {style.description}
-                                                </p>
+                                                <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+                                                    <span>{style.description}</span>
+                                                    <Info className="w-3 h-3" />
+                                                </div>
                                             )}
                                         </div>
-                                        <div className='text-foreground' style={{
+                                        <div className='text-foreground mt-2' style={{
                                             fontFamily: style.fontFamily,
                                             fontSize: style.fontSize,
                                             fontWeight: style.fontWeight,
                                             lineHeight: style.lineHeight,
                                             letterSpacing: style.letterSpacing || 'normal',
                                         }}>
-                                            The quick brown fox jumps over the lazy dog.
-                                        </div>
-                                        <div className='text-xs text-muted-foreground space-y-1'>
-                                            <div>Font: {style.fontFamily}</div>
-                                            <div>Size: {style.fontSize}px</div>
-                                            <div>Weight: {style.fontWeight}</div>
-                                            <div>Line Height: {style.lineHeight}</div>
-                                            {style.letterSpacing && (
-                                                <div>Letter Spacing: {style.letterSpacing}</div>
-                                            )}
+                                            The quick brown fox jumps over the lazy dog
                                         </div>
                                     </div>
                                 ))}

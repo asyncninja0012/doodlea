@@ -2,11 +2,11 @@
 
 import { Button } from "@/components/ui/button"
 import { useProjectCreation } from "@/hooks/use-project"
-import { Loader, Loader2, PlusIcon } from "lucide-react"
+import { Loader2, PlusIcon } from "lucide-react"
 
-type Props = {}
+type Props = Record<string, never>
 
-const createProject = (props: Props) => {
+const CreateProject = (_props: Props) => {
     const {createProject, isCreating, canCreate} = useProjectCreation() 
 
     return (
@@ -22,4 +22,4 @@ const createProject = (props: Props) => {
     )
 }
 
-export default createProject
+export default CreateProject

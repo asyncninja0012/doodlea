@@ -1,16 +1,22 @@
 import { cn } from "@/lib/utils"
 import { ColorSwatch } from "../swatch"
 
+type Swatch = {
+    name: string
+    hexColor: string
+    description?: string
+}
+
+type ColorSection = {
+    title: string
+    swatches: Swatch[]
+}
+
 type Props = {
     title: string
-    swatches: Array<{
-        name:string
-        hexColor: string
-        description?: string
-    }>
+    swatches: Swatch[]
     className?: string
 }
-    
 
 
 
@@ -40,12 +46,12 @@ export const ColorTheme = ({ title, swatches, className }: Props) => {
 }
 
 
-export const ThemeContent = ({colorGuide}: {colorGuide: any[]}) => {
+export const ThemeContent = ({colorGuide}: {colorGuide: ColorSection[]}) => {
     const sections = Array.isArray(colorGuide) ? colorGuide : []
     return (
         <div className='flex flex-col gap-10'>
             <div className='flex flex-col gap-10'>
-                {sections.map((section:any, index:number) => (
+                {sections.map((section, index) => (
                     <ColorTheme key={index} title={section.title} swatches={section.swatches} />
                 ))}
 

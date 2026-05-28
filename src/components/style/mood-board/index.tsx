@@ -6,7 +6,8 @@ import { ImagePlus, Upload } from "lucide-react"
 import { useRef } from "react"
 import { toast } from "sonner"
 import ImagesBoard from "./images-board"
-
+import { useSearchParams } from "next/navigation"
+import { GenerateStyleGuideButton } from "@/components/buttons/style-guide"
 
 type Props = {
     guideImages: MoodBoardImage[]
@@ -25,6 +26,8 @@ const Moodboard = ({guideImages}: Props) => {
         canAddMore,
     } = useMoodBoard(guideImages)
 
+    const searchParams = useSearchParams()
+    const projectId = searchParams.get('project') ?? ''
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     return (
@@ -62,7 +65,7 @@ const Moodboard = ({guideImages}: Props) => {
                         {/* Mobile scattered layout */}
                         <div className="lg:hidden absolute inset-0 flex items-center justify-center">
                             <div className="relative">
-                                {images.map((image, index) => {
+                                {images.map((image: MoodBoardImage, index: number) => {
                                     const seed = image.id.split('').reduce((a,b) => a + b.charCodeAt(0), 0)
                                     const random1 = ((seed * 9301 + 49297) % 233280) / 233280
                                     const random2 = (((seed + 1) * 9301 + 49297) % 233280) / 233280
@@ -91,7 +94,7 @@ const Moodboard = ({guideImages}: Props) => {
                         {/* Desktop scattered layout */}
                         <div className="hidden lg:flex absolute inset-0 items-center justify-center">
                             <div className="relative w-full max-w-[700px] h-[300px] mx-auto">
-                                {images.map((image, index) => {
+                                {images.map((image: MoodBoardImage, index: number) => {
                                     const seed = image.id.split('').reduce((a,b) => a + b.charCodeAt(0), 0)
                                     const random1 = ((seed * 9301 + 49297) % 233280) / 233280
                                     // const random2 = (((seed + 1) * 9301 + 49297) % 233280) / 233280
@@ -163,6 +166,8 @@ const Moodboard = ({guideImages}: Props) => {
                     </button>
                 )}
             </div>
+
+            <GenerateStyleGuideButton images={images} fileInputRef={fileInputRef} projectId={projectId} />
         </div>
     )
 }

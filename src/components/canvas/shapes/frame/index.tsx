@@ -5,10 +5,10 @@ import { useFrame } from "@/hooks/use-canvas";
 
 export const Frame = ({
   shape,
-  toggleInspiration,
+  toggleInspiration = () => {},
 }: {
   shape: FrameShape;
-  toggleInspiration: () => void;
+  toggleInspiration?: () => void;
 }) => {
   const { isGenerating, handleGenerateDesign } = useFrame(shape);
 

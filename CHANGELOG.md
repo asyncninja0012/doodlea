@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-05-28
+
+### Added
+- **AI UI Generation Integration**
+  - Integrated Groq `llama-4-scout-17b-16e-instruct` API for generative UI capabilities on the Canvas.
+  - Streaming AI text response chunks decoded directly on the frontend and rendered in real-time.
+  - Generative UI output box auto-positions intelligently, offsetting horizontally to prevent overlaying when generating multiple designs from the same frame.
+  - Connected Generative UI stream to the `consumeCredits` backend module via Polar and Inngest.
+  - Instant client-side credit deduction event dispatch (`credits-consumed`) to live-update the Navbar balance on stream start.
+
+- **Inspiration Board UI (Canvas)**
+  - Sidebar for managing Inspiration Images linked to a specific frame.
+  - Limit set to 6 max images with intuitive drag-and-drop or click-to-upload.
+  - Dynamic `grid-cols-2` image layout rendered inline within the sidebar.
+  - Images synced securely to cloud storage and database logic via background API operations.
+
 ## [1.3.0] - 2026-03-11
 
 ### Added

@@ -1,16 +1,18 @@
 "use client"
 
-import React, { useEffect, useRef } from "react"
-import { useSearchParams } from "next/navigation"
+import React, { RefObject, useEffect, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { useDispatch } from "react-redux"
-import { AppDispatch, useAppSelector } from "@/redux/store"
+import { AppDispatch, useAppDispatch, useAppSelector } from "@/redux/store"
 import {
     seedMoodBoard,
     addMoodBoardImageLocal,
     updateMoodBoardImage,
     removeMoodBoardImageLocal,
 } from "@/redux/slice/moodboard"
+import { useGenerateStyleGuideMutation } from "@/redux/api/style-guide"
+import { GeneratedUIShape, updateShape } from "@/redux/slice/shapes"
 
 export interface MoodBoardImage {
     id: string
@@ -54,7 +56,7 @@ export const useMoodBoard = (guideImages: MoodBoardImage[]) => {
         }
         // Different project (or first load) — seed from server data
         dispatch(seedMoodBoard({ projectId, images: guideImages }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [projectId])
 
     // --- API helpers ---
@@ -147,36 +149,36 @@ export const useMoodBoard = (guideImages: MoodBoardImage[]) => {
         dispatch(updateMoodBoardImage({ id: image.id, patch: { uploading: true } }))
 
         const file = pendingFilesRef.current.get(image.id)!
-        ;(async () => {
-            try {
-                const uploadUrl = await generateUploadUrl()
-                const formData = new FormData()
-                formData.append('file', file)
-                const result = await fetch(uploadUrl, { method: 'POST', body: formData })
-                if (!result.ok) throw new Error(`Upload failed: ${result.statusText}`)
+            ; (async () => {
+                try {
+                    const uploadUrl = await generateUploadUrl()
+                    const formData = new FormData()
+                    formData.append('file', file)
+                    const result = await fetch(uploadUrl, { method: 'POST', body: formData })
+                    if (!result.ok) throw new Error(`Upload failed: ${result.statusText}`)
 
-                const { storageId, url } = await result.json()
+                    const { storageId, url } = await result.json()
 
-                if (projectId) {
-                    await saveMoodBoardImage(projectId, storageId, url)
+                    if (projectId) {
+                        await saveMoodBoardImage(projectId, storageId, url)
+                    }
+
+                    pendingFilesRef.current.delete(image.id)
+                    dispatch(updateMoodBoardImage({
+                        id: image.id,
+                        patch: { storageId, url, preview: url, uploaded: true, uploading: false, isFromServer: true },
+                    }))
+                } catch (err) {
+                    const message = err instanceof Error ? err.message : 'Upload failed'
+                    console.error(err)
+                    toast.error(message)
+                    dispatch(updateMoodBoardImage({ id: image.id, patch: { uploading: false, error: message } }))
+                } finally {
+                    uploadingRef.current.delete(image.id)
                 }
-
-                pendingFilesRef.current.delete(image.id)
-                dispatch(updateMoodBoardImage({
-                    id: image.id,
-                    patch: { storageId, url, preview: url, uploaded: true, uploading: false, isFromServer: true },
-                }))
-            } catch (err) {
-                const message = err instanceof Error ? err.message : 'Upload failed'
-                console.error(err)
-                toast.error(message)
-                dispatch(updateMoodBoardImage({ id: image.id, patch: { uploading: false, error: message } }))
-            } finally {
-                uploadingRef.current.delete(image.id)
-            }
-        })()
-    // images intentionally included to react to new pending entries
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+            })()
+        // images intentionally included to react to new pending entries
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [images])
 
     // --- Drag & drop ---
@@ -225,4 +227,95 @@ export const useMoodBoard = (guideImages: MoodBoardImage[]) => {
         handleFileInput,
         canAddMore: images.length < 5,
     }
+}
+
+export const useStyleGuide = (
+    projectId: string,
+    images: MoodBoardImage[],
+    fileInputRef: RefObject<HTMLInputElement | null>
+) => {
+    const [generateStyleGuide, { isLoading: isGenerating }] = useGenerateStyleGuideMutation()
+    const router = useRouter()
+    const handleUploadClick = () => fileInputRef.current?.click()
+
+    const handleGenerateStyleGuide = async () => {
+        if (!projectId) {
+            toast.error("Please complete the project setup before generating the style guide")
+            return
+        }
+        if (images.length === 0) {
+            toast.error("Please add images before generating the style guide")
+            return
+        }
+
+        if (images.some((img) => img.uploading)) {
+            toast.error('Please wait for all images to finish uploading')
+            return
+        }
+
+        try {
+            toast.loading('Analysing MoodBoard Images...', {
+                id: 'style-guide-generation'
+            })
+            const result = await generateStyleGuide({ projectId }).unwrap()
+
+            if (!result.success) {
+                toast.error(result.message, { id: 'style-guide-generation' })
+                return
+            }
+            window.dispatchEvent(new Event('credits-consumed'))
+            router.refresh()
+            toast.success('Style guide generated successfuly', { id: 'style-guide-generation' })
+
+            setTimeout(() => {
+                toast.success('Style guide generated! Switch to the Colours tab to see the results',
+                    { duration: 5000 }
+                )
+            }, 1000)
+        } catch (error: any) {
+            const errorMessage = error?.data?.error || error?.error || error?.message || 'Failed to generate style guide'
+            toast.error(errorMessage, { id: 'style-guide-generation' })
+        }
+
+    }
+
+    return {
+        handleGenerateStyleGuide,
+        handleUploadClick,
+        isGenerating,
+    }
+}
+
+export const useUpdateContainer = (shape: GeneratedUIShape) => {
+    const dispatch = useAppDispatch()
+    const containerRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        if (containerRef.current && shape.uiSpecData) {
+            const timeOutId = setTimeout(() => {
+                const actualHeight = containerRef.current?.offsetHeight || 0
+                if (actualHeight > 0 && Math.abs(actualHeight - shape.h) > 10) {
+                    dispatch(
+                        updateShape({
+                            id: shape.id,
+                            patch: { h: actualHeight },
+                        })
+                    )
+                }
+            }, 100)
+            return () => clearTimeout(timeOutId)
+        }
+    }, [shape.h, shape.uiSpecData, shape.id, dispatch])
+
+    const sanitizeHtml = (html: string) => {
+        const sanitized = html
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+            .replace(/on\w+="[^"]*"/gi, '') // Remove event handlers
+            .replace(/javascript:/gi, '') // Remove javascript: protocols
+            .replace(/data:/gi, '') // Remove data: protocols for safety
+
+        return sanitized
+    }
+
+    return { containerRef, sanitizeHtml }
 }

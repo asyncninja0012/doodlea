@@ -399,6 +399,15 @@ const shapesSlice = createSlice({
       if (ids.length) shapesAdapter.removeMany(state.shapes, ids);
       state.selected = {};
     },
+    pasteShapes(state, action: PayloadAction<Shape[]>) {
+      const shapes = action.payload;
+      if (shapes.length === 0) return;
+      shapesAdapter.addMany(state.shapes, shapes);
+      // Select only the newly pasted shapes
+      state.selected = Object.fromEntries(
+        shapes.map((s) => [s.id, true])
+      );
+    },
     loadProject(
       state,
       action: PayloadAction<{
@@ -435,6 +444,7 @@ export const {
   clearSelection,
   selectAll,
   deleteSelected,
+  pasteShapes,
   loadProject,
 } = shapesSlice.actions;
 

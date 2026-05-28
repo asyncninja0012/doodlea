@@ -11,12 +11,12 @@ import { ArrowPreview } from "./shapes/arrow/preview";
 import { LinePreview } from "./shapes/line/preview";
 import { FreeDrawStrokePreview } from "./shapes/stroke/preview";
 import { SelectionOverlay } from "./shapes/selection";
+import InspirationSidebar from "./shapes/inspiration-sidebar";
+import { useState, useCallback, useEffect } from "react";
 
-type Props = {
+type Props = Record<string, never>
 
-}
-
-const InfiniteCanvas = (props: Props) => {
+const InfiniteCanvas = (_props: Props) => {
     const {
         viewport,
         shapes,
@@ -37,9 +37,32 @@ const InfiniteCanvas = (props: Props) => {
     const draftShape = getDraftShape()
     const freeDrawPoints = getFreeDrawPoints()
 
+    const [isInspirationSidebarOpen, setIsInspirationSidebarOpen] = useState(false)
+
+    useEffect(() => {
+        const saved = localStorage.getItem('doodlea_inspiration_sidebar')
+        if (saved === 'true') {
+            setIsInspirationSidebarOpen(true)
+        }
+    }, [])
+
+    const toggleInspiration = useCallback(() => {
+        setIsInspirationSidebarOpen(prev => {
+            const next = !prev
+            localStorage.setItem('doodlea_inspiration_sidebar', next.toString())
+            return next
+        })
+    }, [])
+
+    const closeInspiration = useCallback(() => {
+        setIsInspirationSidebarOpen(false)
+        localStorage.setItem('doodlea_inspiration_sidebar', 'false')
+    }, [])
+
     return (
         <>
             <TextSidebar isOpen = {isSidebarOpen && hasSelectedText} />
+            <InspirationSidebar isOpen={isInspirationSidebarOpen} onClose={closeInspiration} />
 
             <div
                 ref={attachCanvasRef}
@@ -74,7 +97,7 @@ const InfiniteCanvas = (props: Props) => {
                         <ShapeRenderer
                             key={shape.id}
                             shape={shape}
-                            // toggleInspiration={toggleInspiration}
+                            toggleInspiration={toggleInspiration}
                             // toggleChat={toggleChat}
                             // generateWorkflow={generateWorkflow}
                             // exportDesign={exportDesign}

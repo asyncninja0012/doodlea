@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import type { MoodBoardImage } from '@/hooks/use-styles'
-import type { StyleGuide } from '@/redux/api/style-guide'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Hash, LayoutIcon, Type, Palette } from 'lucide-react'
 import { ThemeContent } from '@/components/style/theme'
@@ -18,7 +17,9 @@ const tabs = [
 
 type Props = {
     guideImages: MoodBoardImage[]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     colorGuide: any[]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     typographyGuide: any[]
 }
 

@@ -109,7 +109,7 @@ model Subscription {
   id                     String          @id @default(cuid())
   userId                 String
   polarCustomerId        String
-  polarSubscriptionId    String
+  polarSubscriptionId    String          @unique
   productId              String?
   priceId                String?
   planCode               String?

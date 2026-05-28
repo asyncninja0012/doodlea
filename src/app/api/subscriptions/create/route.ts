@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
-import { prisma } from '@/lib/prisma'
+import { authOptions } from '@/lib/auth-options'
+import { polar, PLAN_CONFIG, type PlanCode } from '@/lib/polar'
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,46 +16,48 @@ export async function POST(request: NextRequest) {
 
     const { plan } = await request.json()
 
-    // TODO: Integrate with actual payment provider (Stripe, Polar, etc.)
-    // For now, create a mock subscription for testing
-    
-    // Check if user already has an active subscription
-    const existingSubscription = await prisma.subscription.findFirst({
-      where: {
-        userId: session.user.id,
-        status: { in: ['active', 'trialing'] },
-      },
-    })
-
-    if (existingSubscription) {
+    if (!plan || !(plan in PLAN_CONFIG)) {
       return NextResponse.json(
-        { error: 'User already has an active subscription' },
+        { error: 'Invalid plan. Must be one of: standard, pro' },
         { status: 400 }
       )
     }
 
-    // Create subscription
-    const subscription = await prisma.subscription.create({
-      data: {
+    const planCode = plan as PlanCode
+    const planCfg = PLAN_CONFIG[planCode]
+
+    if (!planCfg.productId) {
+      return NextResponse.json(
+        { error: 'This plan is not yet available for purchase.' },
+        { status: 400 }
+      )
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? 'http://localhost:3050'
+    const userSlug = session.user.slug
+
+    // Only pre-fill email if it looks real — Polar validates domains strictly.
+    // Fake/test emails (e.g. kl@mm.com) will be collected on the checkout page instead.
+    const email = session.user.email
+    const isValidEmail = email && /^[^@]+@[^@]+\.[^@]{2,}$/.test(email)
+
+    const checkout = await polar.checkouts.create({
+      products: [planCfg.productId],
+      ...(isValidEmail ? { customerEmail: email } : {}),
+      customerMetadata: {
         userId: session.user.id,
-        polarCustomerId: `cust_mock_${Date.now()}`,
-        polarSubscriptionId: `sub_mock_${Date.now()}`,
-        productId: `prod_${plan}`,
-        priceId: `price_${plan}`,
-        planCode: plan,
-        status: 'active',
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-        creditsBalance: 1000,
-        creditsGrantPerPeriod: 1000,
-        creditsRolloverLimit: 2000,
+        planCode,
       },
+      successUrl: `${appUrl}/billing/${userSlug}/success`,
+      returnUrl: `${appUrl}/billing/${userSlug}`,
     })
 
-    return NextResponse.json({ subscription }, { status: 200 })
+    return NextResponse.json({ checkoutUrl: checkout.url }, { status: 200 })
   } catch (error) {
-    console.error('Subscription creation error:', error)
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('[subscriptions/create] Error creating checkout:', message)
     return NextResponse.json(
-      { error: 'Failed to create subscription' },
+      { error: 'Failed to create checkout session', detail: message },
       { status: 500 }
     )
   }
